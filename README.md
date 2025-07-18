@@ -2,12 +2,94 @@
 
 **Agentic AI Application Landscape Discovery**
 
-An intelligent system for analyzing, understanding, and discovering complex application landscapes through AI-powered analysis, knowledge graph generation, and document vector indexing.
+An intelligent system for analyzing, understanding, and discovering complex application landscapes through AI-powered analysis, using knowledge graphs and hybrid document document vector indexing.
 
-## ✨ Features
+## 📑 Contents
 
-### 🔍 **Code Analysis**
-- **Multi-file Processing**: Analyze entire codebases or individual files
+- [Transforming Knowledge Graph Development and Retrieval using LLMs](#transforming-knowledge-graph-development-and-retrieval-using-llms)
+  - [Automated Entity Extraction and Schema Generation](#automated-entity-extraction-and-schema-generation)
+  - [Semantic Understanding and Contextualization](#semantic-understanding-and-contextualization)
+  - [Dynamic Schema Evolution and Maintenance](#dynamic-schema-evolution-and-maintenance)
+  - [Graph RAG Superiority Over Traditional RAG](#graph-rag-superiority-over-traditional-rag)
+  - [Agentic AI and Interactive Knowledge Discovery](#agentic-ai-and-interactive-knowledge-discovery)
+  - [The benefits of Graph RAG solutions](#the-benefits-of-graph-rag-solutions)
+- [✨ Atlas Features](#-atlas-features)
+- [🚀 Quick Start](#-quick-start)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Environment Configuration](#environment-configuration)
+- [📚 Usage](#-usage)
+  - [Analyze Command](#-analyze-command)
+  - [Refine Command](#-refine-command)
+  - [Chat Command](#-chat-command)
+- [🛠️ Provider Configuration](#-provider-configuration)
+  - [OpenAI](#openai)
+  - [Anthropic](#anthropic)
+  - [Ollama (Local)](#ollama-local)
+- [📊 Neo4j Setup](#-neo4j-setup)
+  - [Local Neo4j](#local-neo4j)
+  - [Neo4j Aura (Cloud)](#neo4j-aura-cloud)
+- [🏗️ Architecture](#-architecture)
+- [🔧 Key Components](#-key-components)
+- [🤝 Contributing](#-contributing)
+- [📝 License](#-license)
+- [🙏 Acknowledgments](#-acknowledgments)
+
+## Transforming Knowledge Graph Development and Retrieval using LLMs
+
+LLMs have fundamentally transformed how we work with knowledge graphs, addressing longstanding challenges in schema design and query management, unlocking new capabilities that can be used to help with understanding complex domains.
+
+### **Automated Entity Extraction and Schema Generation**
+
+LLMs excel at parsing unstructured text to identify entities, relationships, and concepts that would traditionally require extensive manual effort. They can automatically extract domain-specific entities from documents, emails, reports, and other text sources, including source code, then map these to appropriate ontological structures. This dramatically reduces the time from raw data to actionable knowledge representation.
+
+The models can also suggest and iteratively refine knowledge graph schemas by analyzing patterns in the extracted entities and relationships. This addresses one of the biggest historical barriers - the upfront investment in schema design that often required deep domain expertise and extensive planning.
+
+### **Semantic Understanding and Contextualization**
+
+Unlike traditional rule-based extraction systems, LLMs bring semantic understanding that captures nuanced relationships and context-dependent meanings. They can disambiguate entities (distinguishing between "Apple" the company versus the fruit), understand implicit relationships, and maintain consistency across large document collections.
+
+This semantic capability extends to multi-modal data integration, where LLMs can help connect structured databases, documents, images, and other data sources into coherent knowledge representations.
+
+### **Dynamic Schema Evolution and Maintenance**
+
+LLMs enable knowledge graphs to evolve organically as new information emerges. Rather than requiring manual schema updates, the models can suggest new entity types, relationships, or structural modifications based on incoming data patterns. This makes knowledge graphs more adaptive to changing business requirements and emerging domains.
+
+### **Graph RAG Superiority Over Traditional RAG**
+
+Graph RAG systems leverage the rich relational structure of knowledge graphs to provide more sophisticated retrieval and reasoning capabilities. Key advantages include:
+
+**Multi-hop reasoning**: Graph RAG can traverse relationships to answer complex questions requiring inference across multiple connected entities, something traditional vector-based RAG struggles with.
+
+**Contextual relevance**: The graph structure provides semantic context that helps retrieve not just similar documents, but relationally relevant information that may not be lexically similar.
+
+**Explainable reasoning paths**: Graph traversal provides clear audit trails showing how conclusions were reached, making the AI's reasoning more transparent and trustworthy.
+
+**Reduced hallucination**: The structured nature of knowledge graphs provides constraints that help ground LLM responses in factual relationships rather than generating plausible-sounding but incorrect information.
+
+### **Agentic AI and Interactive Knowledge Discovery**
+
+LLMs enable sophisticated agentic behaviors when working with knowledge graphs, such as automated hypothesis generation, systematic exploration of knowledge gaps, and intelligent questioning strategies. These agents can autonomously identify areas where the knowledge graph needs expansion or correction, then orchestrate data collection and validation processes.
+
+The combination has made knowledge graphs accessible to domain experts without technical backgrounds, democratizing advanced knowledge management capabilities across organizations while maintaining the precision and structure that makes knowledge graphs so valuable for complex reasoning tasks.
+
+### The benefits of Graph RAG solutions
+Multiple sources underline Graph RAG's significant advantages over traditional RAG approaches. Microsoft Research's foundational paper showed that GraphRAG provides substantial improvements in question-and-answer performance when conducting document analysis, particularly excelling where baseline RAG "struggles to connect the dots". Data.world's study revealed GraphRAG improved LLM response accuracy by 3x across 43 business questions, while RobustQA benchmarking showed Graph RAG achieving 86.31% accuracy compared to traditional RAG's 72.36%. Neo4j research found 77.6% improvement in MRR and 0.32 BLEU score gains, and LinkedIn reported 62.5% reduction in ticket resolution time through Graph RAG's multi-hop reasoning capabilities. Academic evaluations in ArXiv papers systematically demonstrate GraphRAG's distinct strengths across Question Answering and Query-based Summarization tasks, with studies showing equivalent or better quality responses using just 2-3% of the tokens compared to traditional approaches.
+
+**Reference URLs:**
+
+- Microsoft Research GraphRAG Paper: https://www.microsoft.com/en-us/research/blog/graphrag-unlocking-llm-discovery-on-narrative-private-data/
+- Neo4j GraphRAG Manifesto (Data.world study): https://neo4j.com/blog/genai/graphrag-manifesto/
+- RobustQA Benchmarking Analysis: https://www.ankursnewsletter.com/p/graph-rag-vs-traditional-rag-a-comparative
+- LinkedIn Implementation Results: https://www.chitika.com/rag-vs-graph-rag-which-one-is-the-real-game-changer/
+- ArXiv Systematic Evaluation Paper: https://arxiv.org/abs/2502.11371
+- Token Efficiency Study: https://diamantai.substack.com/p/graph-rag-explained
+
+
+## ✨ Atlas Features
+
+### 🔍 **Repo and Folder Analysis**
+- **Multi-file Processing**: Analyze entire folder hierarchies or individual files
 - **Intelligent Filtering**: Support for file type filters and batch processing
 - **Metadata Extraction**: Comprehensive file analysis with statistics
 
@@ -195,13 +277,8 @@ ollama pull nomic-embed-text  # For embeddings
 ## 📊 Neo4j Setup
 
 ### Local Neo4j
-```bash
-# Using Docker
-docker run -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j:latest
-
-# Or install locally
-# Visit: https://neo4j.com/download/
-```
+Please see the separate Neo4j setup guide for instructions on how to setup Neo4j locally using Docker and also how to conigure the MCP servers used by the Atlas chat. 
+For detailed instructions on setting up Neo4j locally (including Docker usage and MCP server configuration), see the [Neo4j Setup Guide](./NEO4J_SETUP.md).
 
 ### Neo4j Aura (Cloud)
 1. Create account at https://neo4j.com/aura/
