@@ -44,8 +44,8 @@ An intelligent system for analyzing, understanding, and discovering complex appl
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/yourusername/atlas.git
-cd atlas
+git clone https://github.com/nickydwyer/Atlas.git
+cd Atlas
 ```
 
 2. **Create and activate virtual environment:**
