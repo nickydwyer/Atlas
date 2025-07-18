@@ -60,6 +60,7 @@ knowledge_graphs/
 *.html
 *.md
 !README.md
+!NEO4J_SETUP.md
 !requirements.txt
 !pyproject.toml
 
