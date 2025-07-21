@@ -369,6 +369,9 @@ def initialize_llm(provider, model):
     elif provider == 'ollama':
         from langchain_ollama import ChatOllama
         return ChatOllama(model=model, temperature=0)
+    elif provider == 'google':
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        return ChatGoogleGenerativeAI(model=model, temperature=0, convert_system_message_to_human=True)
     else:
         raise ValueError(f"Unsupported LLM provider: {provider}")
 
@@ -453,6 +456,11 @@ def generate_embeddings(texts: List[str], llm_provider: str, model: str) -> List
             # Use a common embedding model for Ollama
             embedding_model = 'nomic-embed-text' if 'nomic' not in model else model
             embeddings = OllamaEmbeddings(model=embedding_model)
+        elif llm_provider == 'google':
+            from langchain_google_genai import GoogleGenerativeAIEmbeddings
+            # Use Google's text embedding model
+            embedding_model = 'models/text-embedding-004' if 'embed' not in model else model
+            embeddings = GoogleGenerativeAIEmbeddings(model=embedding_model)
         else:
             raise ValueError(f"Unsupported embedding provider: {llm_provider}")
         
@@ -608,7 +616,7 @@ def create_parser():
     def add_common_args(subparser, default_provider=None, default_model=None):
         subparser.add_argument(
             '--llm-provider',
-            choices=['openai', 'anthropic', 'ollama'],
+            choices=['openai', 'anthropic', 'ollama', 'google'],
             default=default_provider,
             help=f'LLM provider name (default: {default_provider})'
         )
@@ -689,6 +697,10 @@ def validate_provider_config(provider):
     elif provider == 'anthropic':
         if not os.getenv('ANTHROPIC_API_KEY'):
             print("Error: ANTHROPIC_API_KEY not found in environment variables")
+            sys.exit(1)
+    elif provider == 'google':
+        if not os.getenv('GEMINI_API_KEY'):
+            print("Error: GEMINI_API_KEY not found in environment variables")
             sys.exit(1)
     elif provider == 'ollama':
         ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')

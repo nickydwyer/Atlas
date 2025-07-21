@@ -100,7 +100,7 @@ Multiple sources underline Graph RAG's significant advantages over traditional R
 
 ### 📄 **Document Vector Indexing**
 - **Semantic Search**: Vector embeddings for intelligent document search
-- **Multi-provider Support**: OpenAI, Anthropic, and Ollama embeddings
+- **Multi-provider Support**: OpenAI, Anthropic, Ollama, and Google embeddings
 - **Chunking & Indexing**: Smart document chunking with metadata preservation
 - **Neo4j Vector Search**: Integrated vector and full-text search capabilities
 
@@ -112,7 +112,7 @@ Multiple sources underline Graph RAG's significant advantages over traditional R
 
 ### 💬 **Interactive Chat Interface**
 - **MCP Tool Integration**: Model Context Protocol for enhanced capabilities
-- **Multi-provider Support**: OpenAI, Anthropic, and Ollama
+- **Multi-provider Support**: OpenAI, Anthropic, Ollama, and Google Gemini
 - **Streamlit UI**: Modern web interface for conversations
 
 ## 🚀 Quick Start
@@ -154,6 +154,7 @@ Edit `.env` file with your settings:
 # LLM Provider API Keys
 OPENAI_API_KEY=your_openai_key
 ANTHROPIC_API_KEY=your_anthropic_key
+GEMINI_API_KEY=your_gemini_key
 OLLAMA_BASE_URL=http://localhost:11434
 
 # Neo4j Configuration
@@ -194,6 +195,15 @@ python atlas.py analyze --file-name /path/to/specific/file.py \
   --generate-knowledge-graph \
   --llm-provider anthropic \
   --model claude-sonnet-4-20250514
+```
+
+**With Google Gemini:**
+```bash
+python atlas.py analyze --folder-path /path/to/your/code \
+  --generate-knowledge-graph \
+  --index-documents \
+  --llm-provider google \
+  --model gemini-2.5-pro
 ```
 
 **Advanced Options:**
@@ -255,6 +265,18 @@ export ANTHROPIC_API_KEY="your-api-key"
 # Recommended models
 --model claude-sonnet-4-20250514  # Latest and most capable
 --model claude-haiku-20240307     # Fast and efficient
+```
+
+### Google Gemini
+```bash
+# Set your API key
+export GEMINI_API_KEY="your-api-key"
+
+# Recommended models
+--model gemini-2.5-pro        # Latest Gemini 2.5 Pro
+--model gemini-2.5-flash      # Fast and efficient Gemini 2.5 Flash
+--model gemini-1.5-pro        # Most capable stable model
+--model models/text-embedding-004  # For embeddings
 ```
 
 ### Ollama (Local)
@@ -323,7 +345,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Built with [LangChain](https://langchain.com/) for LLM integration
 - Uses [Neo4j](https://neo4j.com/) for graph database capabilities
 - Powered by [Streamlit](https://streamlit.io/) for web interface
-- Supports [OpenAI](https://openai.com/), [Anthropic](https://anthropic.com/), and [Ollama](https://ollama.ai/)
+- Supports [OpenAI](https://openai.com/), [Anthropic](https://anthropic.com/), [Google Gemini](https://ai.google.dev/), and [Ollama](https://ollama.ai/)
 
 ---
 

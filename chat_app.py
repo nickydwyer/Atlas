@@ -6,7 +6,7 @@ import sys
 import json
 import asyncio
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Optional, List
 from collections.abc import Callable
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -28,6 +28,11 @@ try:
     import ollama
 except ImportError:
     ollama = None
+
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
 
 # MCP imports using FastMCP
 import shutil
@@ -87,7 +92,7 @@ class MCPToolManager:
             logging.warning("FastMCP library not available. MCP functionality will be limited.")
         
         self.servers = {}  # server_name -> config
-        self.clients = {}  # server_name -> FastMCPClient
+        self.transports = {}  # server_name -> transport config for reuse
         self.connection_status = {}  # server_name -> status
         self.error_messages = {}  # server_name -> error message
         self.available_tools = {}  # server_name -> list of tools
@@ -135,16 +140,20 @@ class MCPToolManager:
         try:
             self.connection_status[name] = 'connecting'
             
-            # Create FastMCP V2 client with stdio transport using full path
-            # Use StdioTransport for external commands like 'uv', PythonStdioTransport for Python scripts
-            if command.endswith('.py') or 'python' in command:
+            # Store transport configuration for reuse
+            transport_config = {
+                'command_path': full_command_path,
+                'args': args,
+                'transport_type': 'python' if command.endswith('.py') or 'python' in command else 'stdio'
+            }
+            self.transports[name] = transport_config
+            
+            # Create transport and client for testing connection
+            if transport_config['transport_type'] == 'python':
                 transport = PythonStdioTransport(full_command_path, args)
             else:
                 transport = StdioTransport(full_command_path, args)
             client = FastMCPClient(transport)
-            
-            # Store the client (will be connected when used)
-            self.clients[name] = client
             
             # Test connection and get available tools
             async with client as session:
@@ -216,34 +225,27 @@ class MCPToolManager:
         if server_name not in self.servers:
             return False, f"Server '{server_name}' not configured"
         
-        # Get server config
-        config = self.servers[server_name]
-        command = config['command']
-        args = config['args']
+        # Check if we have transport configuration for this server
+        if server_name not in self.transports or self.connection_status.get(server_name) != 'connected':
+            return False, f"Server '{server_name}' not connected. Please connect first."
         
-        # Check if command exists
-        if not self.check_command_availability(command):
-            return False, f"Command '{command}' not found in PATH"
+        # Create a fresh client using stored transport configuration
+        transport_config = self.transports[server_name]
         
-        # Resolve command to full path
-        full_command_path = self.resolve_command_path(command)
-        
-        logging.info(f"Creating fresh client for tool call: {server_name}.{tool_name}")
+        logging.info(f"Creating fresh client using stored transport config for: {server_name}.{tool_name}")
         logging.info(f"Tool arguments: {arguments}")
         
         try:
-            # Create fresh FastMCP V2 client for each tool call
-            if command.endswith('.py') or 'python' in command:
-                transport = PythonStdioTransport(full_command_path, args)
+            # Create transport and client
+            if transport_config['transport_type'] == 'python':
+                transport = PythonStdioTransport(transport_config['command_path'], transport_config['args'])
             else:
-                transport = StdioTransport(full_command_path, args)
-            
+                transport = StdioTransport(transport_config['command_path'], transport_config['args'])
             client = FastMCPClient(transport)
             
-            # Call the tool using FastMCP V2 with async context manager
-            logging.info(f"Attempting to create session with fresh client...")
+            # Call the tool using fresh client with async context manager
             async with client as session:
-                logging.info(f"Session created successfully")
+                logging.info(f"Session created with fresh client using stored config")
                 logging.info(f"Calling tool '{tool_name}' with arguments: {arguments}")
                 result = await session.call_tool(tool_name, arguments)
                 logging.info(f"Tool call completed, result type: {type(result)}")
@@ -274,6 +276,13 @@ class MCPToolManager:
             error_details = traceback.format_exc()
             logging.error(f"Error calling tool {tool_name} on {server_name}: {e}")
             logging.error(f"Full traceback: {error_details}")
+            
+            # If the error might be due to a stale connection, mark as disconnected
+            if "Connection" in str(e) or "Transport" in str(e):
+                logging.warning(f"Marking {server_name} as disconnected due to connection error")
+                self.connection_status[server_name] = 'failed'
+                self.error_messages[server_name] = str(e)
+            
             return False, str(e)
     
     def get_all_available_tools(self) -> dict[str, list[dict]]:
@@ -305,16 +314,15 @@ class MCPToolManager:
     
     async def disconnect_all(self):
         """Disconnect from all MCP servers"""
-        for name, client in list(self.clients.items()):
+        for name in list(self.transports.keys()):
             try:
-                if hasattr(client, 'disconnect'):
-                    await client.disconnect()
-                elif hasattr(client, 'close'):
-                    await client.close()
+                # Clear transport configuration and mark as disconnected
+                if name in self.transports:
+                    del self.transports[name]
+                self.connection_status[name] = 'disconnected'
+                logging.info(f"Disconnected from {name}")
             except Exception as e:
                 logging.error(f"Error disconnecting from {name}: {e}")
-            finally:
-                del self.clients[name]
                 self.connection_status[name] = 'disconnected'
 
 
@@ -1002,6 +1010,227 @@ class OllamaProvider(LLMProvider):
             return f"Error generating response: {str(e)}"
 
 
+class GoogleProvider(LLMProvider):
+    """Google Gemini provider implementation"""
+    
+    def __init__(self, api_key: str, model: str, mcp_manager: Optional['MCPToolManager'] = None):
+        super().__init__(model, api_key)
+        if not genai:
+            raise ImportError("google-generativeai package not installed")
+        self.mcp_manager = mcp_manager
+        genai.configure(api_key=self.api_key)
+        self.client = genai.GenerativeModel(model_name=self.model)
+    
+    def _clean_schema_for_google(self, schema: dict) -> dict:
+        """Clean schema to remove fields not supported by Google"""
+        if not isinstance(schema, dict):
+            return schema
+        
+        # Fields that Google doesn't support
+        unsupported_fields = {'title', 'examples', 'default', '$schema', '$id', 'additionalProperties'}
+        
+        cleaned = {}
+        for key, value in schema.items():
+            if key not in unsupported_fields:
+                if isinstance(value, dict):
+                    cleaned[key] = self._clean_schema_for_google(value)
+                elif isinstance(value, list):
+                    cleaned[key] = [self._clean_schema_for_google(item) if isinstance(item, dict) else item for item in value]
+                else:
+                    cleaned[key] = value
+        
+        return cleaned
+    
+    def _convert_mcp_tools_to_google_format(self) -> list[dict]:
+        """Convert MCP tools to Google function calling format"""
+        if not self.mcp_manager:
+            return []
+        
+        google_tools = []
+        all_tools = self.mcp_manager.get_all_available_tools()
+        logging.info(f"Converting {len(all_tools)} MCP tool servers for Google")
+        
+        for server_name, tools in all_tools.items():
+            for tool in tools:
+                tool_name = tool.get('name', 'unknown')
+                
+                # Get and clean the input schema
+                raw_schema = tool.get('inputSchema', {
+                    'type': 'object',
+                    'properties': {},
+                    'required': []
+                })
+                cleaned_schema = self._clean_schema_for_google(raw_schema)
+                
+                google_tool = {
+                    'name': f"{server_name}_{tool_name}",
+                    'description': tool.get('description', f'Execute {tool_name} from {server_name}'),
+                    'parameters': cleaned_schema
+                }
+                google_tools.append(google_tool)
+                logging.info(f"Added Google tool: {google_tool['name']}")
+        
+        logging.info(f"Total Google tools: {len(google_tools)}")
+        return google_tools
+    
+    async def generate_response(self, messages: List[ChatMessage]) -> str:
+        """Generate response using Google Gemini"""
+        try:
+            # Convert messages to Google format
+            google_messages = []
+            
+            for msg in messages:
+                if msg.role == 'user':
+                    google_messages.append({
+                        'role': 'user',
+                        'parts': [msg.content]
+                    })
+                elif msg.role == 'assistant':
+                    google_messages.append({
+                        'role': 'model',
+                        'parts': [msg.content]
+                    })
+            
+            # Get available MCP tools
+            tools = self._convert_mcp_tools_to_google_format()
+            logging.info(f"Available tools for Google: {len(tools)} tools")
+            
+            # Prepare request parameters
+            generation_config = {
+                'temperature': 0.1,
+                'top_p': 0.95,
+                'top_k': 64,
+                'max_output_tokens': 8192,
+            }
+            
+            # Create the model with tools if available
+            if tools and self.mcp_manager:
+                from google.generativeai.types import FunctionDeclaration, Tool
+                
+                # Convert tools to Google's FunctionDeclaration format
+                google_function_declarations = []
+                for tool in tools:
+                    func_decl = FunctionDeclaration(
+                        name=tool['name'],
+                        description=tool['description'],
+                        parameters=tool['parameters']
+                    )
+                    google_function_declarations.append(func_decl)
+                
+                google_tool = Tool(function_declarations=google_function_declarations)
+                model = genai.GenerativeModel(
+                    model_name=self.model,
+                    tools=[google_tool],
+                    generation_config=generation_config
+                )
+            else:
+                model = genai.GenerativeModel(
+                    model_name=self.model,
+                    generation_config=generation_config
+                )
+            
+            # Generate response
+            if google_messages:
+                # Use the last message as the prompt
+                prompt = google_messages[-1]['parts'][0]
+                
+                # Include conversation history as context if there are multiple messages
+                if len(google_messages) > 1:
+                    context = "Previous conversation:\n"
+                    for msg in google_messages[:-1]:
+                        role = "Human" if msg['role'] == 'user' else "Assistant"
+                        context += f"{role}: {msg['parts'][0]}\n"
+                    prompt = f"{context}\nCurrent question: {prompt}"
+                
+                response = model.generate_content(prompt)
+                
+                # Handle function calls if present
+                if hasattr(response, 'candidates') and response.candidates:
+                    candidate = response.candidates[0]
+                    
+                    # Check for function calls
+                    if hasattr(candidate.content, 'parts'):
+                        tool_calls_made = False
+                        final_response = ""
+                        
+                        for part in candidate.content.parts:
+                            if hasattr(part, 'function_call') and part.function_call:
+                                # Execute the function call
+                                function_name = part.function_call.name
+                                function_args = dict(part.function_call.args) if part.function_call.args else {}
+                                
+                                logging.info(f"Google function call: {function_name} with args: {function_args}")
+                                
+                                # Parse server and tool name
+                                if '_' in function_name:
+                                    server_name, actual_tool_name = function_name.split('_', 1)
+                                else:
+                                    server_name = 'unknown'
+                                    actual_tool_name = function_name
+                                
+                                # Execute the MCP tool
+                                if self.mcp_manager:
+                                    success, tool_result = await self.mcp_manager.call_tool(
+                                        server_name, actual_tool_name, function_args
+                                    )
+                                    logging.info(f"Tool result: success={success}, result={tool_result}")
+                                    tool_calls_made = True
+                                    
+                                    if success:
+                                        # Generate follow-up response with tool result using a model WITHOUT tools
+                                        # to prevent infinite function calling loops
+                                        text_only_model = genai.GenerativeModel(
+                                            model_name=self.model,
+                                            generation_config=generation_config
+                                        )
+                                        follow_up_prompt = f"{prompt}\n\nTool '{function_name}' returned: {tool_result}\n\nPlease provide a comprehensive response based on this information. Do not call any tools."
+                                        follow_up_response = text_only_model.generate_content(follow_up_prompt)
+                                        
+                                        try:
+                                            if follow_up_response.text:
+                                                final_response = follow_up_response.text
+                                            else:
+                                                final_response = f"Tool '{function_name}' executed successfully. Result: {tool_result}"
+                                        except Exception as e:
+                                            logging.warning(f"Could not get follow_up_response.text: {e}")
+                                            final_response = f"Tool '{function_name}' executed successfully. Result: {tool_result}"
+                                    else:
+                                        final_response = f"Error executing tool {function_name}: {tool_result}"
+                            elif hasattr(part, 'text') and part.text:
+                                final_response = part.text
+                        
+                        if tool_calls_made and final_response:
+                            return final_response
+                        elif tool_calls_made:
+                            return "Tool calls completed successfully."
+                
+                # Return the text response - handle cases where response.text fails
+                try:
+                    if response.text:
+                        return response.text
+                    else:
+                        return "No response generated"
+                except Exception as e:
+                    # If response.text fails (e.g., due to function calls), extract text from parts
+                    logging.warning(f"Could not get response.text directly: {e}")
+                    if hasattr(response, 'candidates') and response.candidates:
+                        candidate = response.candidates[0]
+                        if hasattr(candidate.content, 'parts'):
+                            text_parts = []
+                            for part in candidate.content.parts:
+                                if hasattr(part, 'text') and part.text:
+                                    text_parts.append(part.text)
+                            if text_parts:
+                                return ' '.join(text_parts)
+                    return "Could not extract response text"
+            else:
+                return "No messages to process"
+                
+        except Exception as e:
+            logging.error(f"Error in Google generate_response: {str(e)}")
+            return f"Error generating response: {str(e)}"
+
+
 class ChatHistory:
     """Manages chat history persistence"""
     
@@ -1078,39 +1307,30 @@ class AtlasDiscoveryAgent:
         """Setup default MCP tools - only Neo4j"""
         # Neo4j MCP server (using same config as Claude Desktop)
 
-        # AppMod Neo4j server
-        # mcp_server_name = "app-mod-neo4j"
-        # neo4j_db_url = os.getenv('NEO4J_DB_URL', 'neo4j://192.168.178.141:7687')
-        # neo4j_username = os.getenv('NEO4J_USERNAME', 'neo4j')
-        # neo4j_password = os.getenv('NEO4J_PASSWORD', 'LC_WvT5m4Cq6N6k')
-
         # Local Neo4j server
         mcp_server_name = "local-neo4j"
         neo4j_db_url = os.getenv('NEO4J_DB_URL', 'neo4j://localhost:7687')
         neo4j_username = os.getenv('NEO4J_USERNAME', 'neo4j')
         neo4j_password = os.getenv('NEO4J_PASSWORD', 'scale-silence-limit-minus-rent-7661')
 
-        # mcp_server_name = "app-mod-neo4j"
-        # neo4j_db_url = 'neo4j://192.168.178.141:7687'
-        # neo4j_username = 'neo4j'
-        # neo4j_password = 'LC_WvT5m4Cq6N6k'
-        
-        # Try to use the local MCP server if available, otherwise fall back to uvx
-        local_mcp_path = "/Users/nick.dwyer/Documents/GenAI/MCP/servers/mcp-neo4j/servers/mcp-neo4j-cypher/src"
-        if os.path.exists(local_mcp_path):
+        # Try to use the local Neo4j MCP server if available, otherwise fall back to uvx
+        local_mcp_path = os.getenv('LOCAL_NEO4J_MCP_SERVER_PATH')
+        if local_mcp_path and os.path.exists(local_mcp_path):
+            # Use the local Neo4j MCP server executable
             self.mcp_manager.add_tool_server(
-                mcp_server_name, "uvx",
-                args=["mcp-neo4j-cypher", 
+                mcp_server_name, local_mcp_path,
+                args=["--transport", "stdio",
                       "--db-url", neo4j_db_url, 
                       "--username", neo4j_username, 
                       "--password", neo4j_password],
-                description="Neo4j graph database operations via Cypher queries"
+                description="Neo4j graph database operations via Cypher queries (local server)"
             )
         else:
             # Fallback to uvx (original Claude Desktop config)
             self.mcp_manager.add_tool_server(
                 mcp_server_name, "uvx",
-                args=["mcp-neo4j-cypher", 
+                args=["mcp-neo4j-cypher",
+                      "--transport", "stdio",
                       "--db-url", neo4j_db_url, 
                       "--username", neo4j_username, 
                       "--password", neo4j_password],
@@ -1138,7 +1358,7 @@ class AtlasDiscoveryAgent:
         
         provider = st.sidebar.selectbox(
             "Provider",
-            ["anthropic", "openai", "ollama"],
+            ["anthropic", "openai", "ollama", "google"],
             index=0  # Default to anthropic
         )
         
@@ -1158,6 +1378,14 @@ class AtlasDiscoveryAgent:
             )
             api_key = st.sidebar.text_input("API Key", type="password", 
                                           value=os.getenv('OPENAI_API_KEY', ''))
+        elif provider == "google":
+            model = st.sidebar.selectbox(
+                "Model",
+                ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
+                index=0
+            )
+            api_key = st.sidebar.text_input("API Key", type="password", 
+                                          value=os.getenv('GEMINI_API_KEY', ''))
         else:  # ollama
             model = st.sidebar.text_input("Model", value="llama3.1")
             base_url = st.sidebar.text_input("Base URL", 
@@ -1191,6 +1419,8 @@ class AtlasDiscoveryAgent:
                     self.llm_provider = AnthropicProvider(model, api_key, self.mcp_manager)
                 elif provider == "openai":
                     self.llm_provider = OpenAIProvider(model, api_key, self.mcp_manager)
+                elif provider == "google":
+                    self.llm_provider = GoogleProvider(api_key, model, self.mcp_manager)
                 else:
                     self.llm_provider = OllamaProvider(model, base_url, self.mcp_manager)
                 
@@ -1238,6 +1468,8 @@ class AtlasDiscoveryAgent:
                         tools = self.llm_provider._convert_mcp_tools_to_anthropic_format()
                     elif provider == "openai":
                         tools = self.llm_provider._convert_mcp_tools_to_openai_format()
+                    elif provider == "google":
+                        tools = self.llm_provider._convert_mcp_tools_to_google_format()
                     else:  # ollama
                         tools = self.llm_provider._convert_mcp_tools_to_ollama_format()
                     tool_count = len(tools)
@@ -1442,7 +1674,7 @@ class AtlasDiscoveryAgent:
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(description="Atlas Discovery Agent Chat Interface")
-    parser.add_argument('--llm-provider', choices=['anthropic', 'openai', 'ollama'], 
+    parser.add_argument('--llm-provider', choices=['anthropic', 'openai', 'ollama', 'google'], 
                        default='anthropic', help='LLM provider')
     parser.add_argument('--model', help='Model name')
     parser.add_argument('--port', type=int, default=8501, help='Streamlit port')
