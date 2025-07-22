@@ -58,6 +58,10 @@ except ImportError:
     FASTMCP_AVAILABLE = False
 
 
+ANALYSIS_SYSTEM_PROMPT="""
+Your role is tofocus on software application analysis and discovery,including tools and technology usage. 
+If asked to do anything else respond with 'this is not in my current remit'"""
+
 @dataclass
 class ChatMessage:
     """Represents a single chat message"""
@@ -458,9 +462,7 @@ class AnthropicProvider(LLMProvider):
                 logging.warning("No tools available for LLM")
             
             response = self.client.messages.create(**request_params,
-                                                   system="""focus on application landscape discovery, analysis,            
-                    and tool usage, if asked to do anything else respond with 
-                    'this is not in my current remit'""")
+                                                   system=ANALYSIS_SYSTEM_PROMPT)
             
             logging.info(f"=== INITIAL RESPONSE RECEIVED ===")
             logging.info(f"Response object type: {type(response)}")
@@ -741,7 +743,7 @@ class OpenAIProvider(LLMProvider):
 
             openai_messages.append({
                 "role": "system",
-                "content": "Focus on application landscape discovery, analysis, and tool usage. If asked to do anything else, respond with 'this is not in my current remit'."
+                "content": ANALYSIS_SYSTEM_PROMPT
             })
             
             # Get available MCP tools
@@ -939,7 +941,7 @@ class OllamaProvider(LLMProvider):
             # Add system message
             ollama_messages.insert(0, {
                 'role': 'system',
-                'content': 'You are a helpful assistant focussing on application landscape discovery, analysis, and tool usage. If asked to do anything else decline and respond with "this is not in my current remit".'
+                'content': ANALYSIS_SYSTEM_PROMPT
             })
             
             # Get available MCP tools
