@@ -61,6 +61,7 @@ knowledge_graphs/
 *.md
 !README.md
 !NEO4J_SETUP.md
+!MCP_CONFIGURATION.md
 !requirements.txt
 !pyproject.toml
 
