@@ -13,6 +13,9 @@ from pathlib import Path
 import subprocess
 import argparse
 
+# Import MCP configuration loader
+from mcp_config import MCPConfigLoader
+
 # LLM client imports
 try:
     import anthropic
@@ -1294,7 +1297,7 @@ class AtlasDiscoveryAgent:
         self.mcp_manager = MCPToolManager()
         self.llm_provider: Optional[LLMProvider] = None
         self.setup_page_config()
-        self.setup_default_mcp_tools()
+        self.setup_mcp_tools_from_config()
     
     def setup_page_config(self):
         """Configure Streamlit page"""
@@ -1305,15 +1308,68 @@ class AtlasDiscoveryAgent:
             initial_sidebar_state="expanded"
         )
     
-    def setup_default_mcp_tools(self):
-        """Setup default MCP tools - only Neo4j"""
+    def setup_mcp_tools_from_config(self):
+        """Setup MCP tools from external configuration file"""
+        try:
+            # Load MCP configuration
+            config_loader = MCPConfigLoader()
+            config_loader.load_config()
+            
+            # Validate environment for all enabled servers
+            validation_results = config_loader.validate_all_enabled_servers()
+            if validation_results:
+                logging.warning("Some MCP servers have missing environment variables:")
+                for server_name, missing_vars in validation_results.items():
+                    logging.warning(f"  {server_name}: {missing_vars}")
+            
+            # Setup enabled servers
+            enabled_servers = config_loader.get_enabled_servers()
+            if not enabled_servers:
+                logging.warning("No MCP servers enabled in configuration")
+                return
+                
+            logging.info(f"Setting up {len(enabled_servers)} MCP servers: {list(enabled_servers.keys())}")
+            
+            for server_name, server_config in enabled_servers.items():
+                try:
+                    # Skip servers with missing required environment variables
+                    missing_vars = config_loader.validate_environment(server_config)
+                    if missing_vars:
+                        logging.error(f"Skipping server '{server_name}' due to missing environment variables: {missing_vars}")
+                        continue
+                    
+                    # Add the server to MCP manager
+                    self.mcp_manager.add_tool_server(
+                        server_name,
+                        server_config.executable,
+                        args=server_config.args,
+                        description=server_config.description
+                    )
+                    logging.info(f"Added MCP server: {server_name}")
+                    
+                except Exception as e:
+                    logging.error(f"Failed to setup MCP server '{server_name}': {e}")
+                    if config_loader.global_settings.fallback_behavior == "error":
+                        raise
+                        
+        except Exception as e:
+            logging.error(f"Failed to load MCP configuration: {e}")
+            # Fallback to previous hardcoded behavior if configuration fails
+            self._setup_fallback_mcp_tools()
+    
+    def _setup_fallback_mcp_tools(self):
+        """Fallback MCP setup using hardcoded Neo4j configuration"""
+        logging.warning("Using fallback MCP configuration (hardcoded Neo4j only)")
+        
         # Neo4j MCP server (using same config as Claude Desktop)
-
-        # Local Neo4j server
         mcp_server_name = "local-neo4j"
-        neo4j_db_url = os.getenv('NEO4J_DB_URL', 'neo4j://localhost:7687')
+        neo4j_db_url = os.getenv('NEO4J_URI', 'neo4j://localhost:7687')
         neo4j_username = os.getenv('NEO4J_USERNAME', 'neo4j')
-        neo4j_password = os.getenv('NEO4J_PASSWORD', 'scale-silence-limit-minus-rent-7661')
+        neo4j_password = os.getenv('NEO4J_PASSWORD')
+        
+        if not neo4j_password:
+            logging.error("NEO4J_PASSWORD environment variable is required")
+            return
 
         # Try to use the local Neo4j MCP server if available, otherwise fall back to uvx
         local_mcp_path = os.getenv('LOCAL_NEO4J_MCP_SERVER_PATH')
@@ -1521,7 +1577,7 @@ class AtlasDiscoveryAgent:
                 # Show command details for complex tools
                 if tool_name == 'local-neo4j':
                     st.sidebar.caption(f"Command: {info['command']} mcp-neo4j-cypher")
-                    st.sidebar.caption(f"Database: {os.getenv('NEO4J_DB_URL', 'neo4j://localhost:7687')}")
+                    st.sidebar.caption(f"Database: {os.getenv('NEO4J_URI', 'neo4j://localhost:7687')}")
                 
                 if error and status in ['failed', 'error']:
                     st.sidebar.error(f"Error: {error}")

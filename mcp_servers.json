@@ -1,0 +1,113 @@
+{
+  "servers": {
+    "local-neo4j": {
+      "enabled": true,
+      "description": "Neo4j graph database operations via Cypher queries",
+      "command": {
+        "executable": "${LOCAL_NEO4J_MCP_SERVER_PATH}",
+        "fallback_executable": "uvx",
+        "fallback_args": ["mcp-neo4j-cypher"]
+      },
+      "args": [
+        "--transport", "stdio",
+        "--db-url", "${NEO4J_URI:neo4j://localhost:7687}",
+        "--username", "${NEO4J_USERNAME:neo4j}",
+        "--password", "${NEO4J_PASSWORD}"
+      ],
+      "transport": "stdio",
+      "environment": {
+        "required": ["NEO4J_PASSWORD"],
+        "optional": ["LOCAL_NEO4J_MCP_SERVER_PATH", "NEO4J_URI", "NEO4J_USERNAME"]
+      }
+    },
+    "app-mod-neo4j": {
+      "enabled": false,
+      "description": "Application modernization Neo4j database for specialized queries",
+      "command": {
+        "executable": "uvx",
+        "args": ["mcp-neo4j-cypher"]
+      },
+      "args": [
+        "--transport", "stdio",
+        "--db-url", "${APP_MOD_NEO4J_URI:neo4j://localhost:7688}",
+        "--username", "${APP_MOD_NEO4J_USERNAME:neo4j}",
+        "--password", "${APP_MOD_NEO4J_PASSWORD}"
+      ],
+      "transport": "stdio",
+      "environment": {
+        "required": ["APP_MOD_NEO4J_PASSWORD"],
+        "optional": ["APP_MOD_NEO4J_URI", "APP_MOD_NEO4J_USERNAME"]
+      }
+    },
+    "filesystem": {
+      "enabled": false,
+      "description": "File system operations for reading and writing files",
+      "command": {
+        "executable": "uvx",
+        "args": ["mcp-filesystem"]
+      },
+      "args": [
+        "--transport", "stdio",
+        "--allowed-paths", "${MCP_FILESYSTEM_ALLOWED_PATHS:./}"
+      ],
+      "transport": "stdio",
+      "environment": {
+        "optional": ["MCP_FILESYSTEM_ALLOWED_PATHS"]
+      }
+    },
+    "web-search": {
+      "enabled": false,
+      "description": "Web search capabilities using various search engines",
+      "command": {
+        "executable": "uvx",
+        "args": ["mcp-web-search"]
+      },
+      "args": [
+        "--transport", "stdio",
+        "--api-key", "${WEB_SEARCH_API_KEY}"
+      ],
+      "transport": "stdio",
+      "environment": {
+        "required": ["WEB_SEARCH_API_KEY"]
+      }
+    },
+    "github": {
+      "enabled": false,
+      "description": "GitHub repository and issue management",
+      "command": {
+        "executable": "uvx",
+        "args": ["mcp-github"]
+      },
+      "args": [
+        "--transport", "stdio",
+        "--token", "${GITHUB_TOKEN}"
+      ],
+      "transport": "stdio",
+      "environment": {
+        "required": ["GITHUB_TOKEN"]
+      }
+    },
+    "python-repl": {
+      "enabled": false,
+      "description": "Python REPL for code execution and analysis",
+      "command": {
+        "executable": "python",
+        "args": ["-m", "mcp_python_repl"]
+      },
+      "args": [
+        "--transport", "stdio"
+      ],
+      "transport": "stdio",
+      "environment": {
+        "optional": []
+      }
+    }
+  },
+  "global_settings": {
+    "connection_timeout": 30,
+    "max_retries": 3,
+    "retry_delay": 1.0,
+    "environment_variable_interpolation": true,
+    "fallback_behavior": "warn"
+  }
+}
