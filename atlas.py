@@ -5,7 +5,6 @@ import sys
 import os
 import subprocess
 import time
-import random
 from pathlib import Path
 from dotenv import load_dotenv
 from file_analyzer import FileAnalyzer
@@ -677,6 +676,12 @@ def create_parser():
         default=False,
         help='Index documents for search and retrieval (default: false)'
     )
+    analyze_parser.add_argument(
+        '--analysis-context',
+        choices=['legacy', 'oracle', 'itsm'],
+        default='legacy',
+        help='Analysis context/persona: legacy (default), oracle (Oracle Forms/PLSQL), or itsm (IT Service Management tickets)'
+    )
     
     # Chat command  
     chat_parser = subparsers.add_parser('chat', help='Interactive chat interface')
@@ -725,6 +730,7 @@ async def analyze_command(args):
     print(f"  File Type Filter: {args.file_type_filter if args.file_type_filter else 'All files (wildcard)'}")
     print(f"  Generate Knowledge Graph: {args.generate_knowledge_graph}")
     print(f"  Index Documents: {args.index_documents}")
+    print(f"  Analysis Context: {args.analysis_context}")
     
     validate_provider_config(args.llm_provider)
     
@@ -740,8 +746,17 @@ async def analyze_command(args):
     if args.llm_provider == 'ollama':
         print(f"  Ollama Base URL: {os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')}")
     
-    # Initialize file analyzer
-    analyzer = FileAnalyzer()
+    # Initialize appropriate analyzer based on analysis context
+    if args.analysis_context == 'itsm':
+        from itsm_data_analyzer import ITSMDataAnalyzer
+        analyzer = ITSMDataAnalyzer()
+        print(f"🎫 Using ITSM data analyzer")
+    else:  # legacy or oracle (both use FileAnalyzer now)
+        analyzer = FileAnalyzer()
+        if args.analysis_context == 'oracle':
+            print(f"🔧 Using Oracle Forms/PL-SQL analyzer (FileAnalyzer with Oracle schema)")
+        else:
+            print(f"🏗️ Using legacy application analyzer (FileAnalyzer with legacy schema)")
     
     # Handle single file processing vs directory processing
     if args.file_name:
@@ -911,7 +926,12 @@ async def analyze_command(args):
             
             try:
                 # Generate knowledge graph for batch
-                graph_documents = await analyzer.create_knowledge_graph(batch, llm_model, graph_store)
+                if args.analysis_context == 'itsm':
+                    # ITSM analyzer doesn't take analysis_context parameter
+                    graph_documents = await analyzer.create_knowledge_graph(batch, llm_model, graph_store)
+                else:
+                    # FileAnalyzer takes analysis_context parameter
+                    graph_documents = await analyzer.create_knowledge_graph(batch, llm_model, graph_store, args.analysis_context)
                 
                 batch_end_stats = graph_store.get_stats()
                 nodes_added = batch_end_stats['nodes'] - batch_start_stats['nodes']
@@ -945,8 +965,8 @@ async def analyze_command(args):
         failed_files = analyzer.get_failed_files_list()
         if failed_files:
             print(f"⚠️ Some files failed to process:")
-            for file, error in failed_files.items():
-                print(f"  {file}: {error}")
+            for file_metadata, error_reason in failed_files:
+                print(f"  {file_metadata.path}: {error_reason}")
             print(f"   Total Failed Files: {len(failed_files)}")
         
         kg_stats = {

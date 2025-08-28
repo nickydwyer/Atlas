@@ -1,0 +1,117 @@
+# Legacy Application Analysis Schema Configuration
+# This file defines the allowed nodes and relationships for legacy application modernization analysis
+
+# Node types allowed in the knowledge graph
+allowed_nodes:
+  # System Architecture
+  - System
+  - Application
+  - Service
+  - Component
+  - Module
+  - Library
+  - Framework
+  
+  # Code Entities
+  - Program
+  - Function
+  - Procedure
+  - Class
+  - Method
+  - Interface
+  - Package
+  - Namespace
+  
+  # Data Entities
+  - Database
+  - Table
+  - View
+  - Index
+  - Schema
+  - File
+  - DataSource
+  - Repository
+  
+  # Infrastructure
+  - Server
+  - Configuration
+  - Environment
+  - Deployment
+  
+  # Business Entities
+  - BusinessEntity
+  - BusinessProcess
+  - BusinessRule
+  - Domain
+  - Workflow
+  
+  # Documentation
+  - Documentation
+  - Specification
+  - UserGuide
+  - API
+  - Contract
+  
+  # Legacy Mainframe
+  - MainframeJob
+  - BatchProgram
+  - ScreenMap
+  - Transaction
+  - Dataset
+  - Copybook
+
+# Relationship types allowed in the knowledge graph
+allowed_relationships:
+  # Structural relationships
+  - CONTAINS
+  - BELONGS_TO
+  - PART_OF
+  - COMPOSED_OF
+  
+  # Dependency relationships
+  - DEPENDS_ON
+  - USES
+  - REQUIRES
+  - IMPORTS
+  - INCLUDES
+  
+  # Functional relationships
+  - CALLS
+  - INVOKES
+  - EXECUTES
+  - TRIGGERS
+  - IMPLEMENTS
+  - EXTENDS
+  - INHERITS_FROM
+  
+  # Data relationships
+  - READS_FROM
+  - WRITES_TO
+  - ACCESSES
+  - MODIFIES
+  - STORES_IN
+  - RETRIEVES_FROM
+  
+  # Communication relationships
+  - CONNECTS_TO
+  - COMMUNICATES_WITH
+  - SENDS_TO
+  - RECEIVES_FROM
+  
+  # Business relationships
+  - PROCESSES
+  - MANAGES
+  - HANDLES
+  - SUPPORTS
+  - SERVES
+  
+  # Documentation relationships
+  - DOCUMENTS
+  - DESCRIBES
+  - SPECIFIES
+  - REFERENCES
+  
+  # Configuration relationships
+  - CONFIGURES
+  - DEFINES
+  - CONTROLS

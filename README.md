@@ -2,7 +2,7 @@
 
 **Agentic AI Application Landscape Discovery**
 
-An intelligent system for analyzing, understanding, and discovering complex application landscapes through AI-powered analysis, using knowledge graphs and hybrid document document vector indexing.
+Atlas is an intelligent platform for analyzing, understanding, and discovering complex application landscapes through AI-powered analysis, using knowledge graphs and hybrid document document vector indexing.
 
 ## 📑 Contents
 
@@ -118,7 +118,7 @@ Multiple sources underline Graph RAG's significant advantages over traditional R
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.10+
 - Neo4j Database (local or cloud)
 - API keys for your chosen LLM provider
 

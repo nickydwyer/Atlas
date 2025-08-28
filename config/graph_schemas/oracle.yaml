@@ -1,0 +1,190 @@
+# Oracle Forms and PL/SQL Analysis Schema Configuration
+# This file defines the allowed nodes and relationships for Oracle Forms and PL/SQL application analysis
+
+# Node types allowed in the knowledge graph
+allowed_nodes:
+  # Oracle Forms Entities
+  - OracleForm
+  - FormBlock
+  - FormItem
+  - FormCanvas
+  - FormTrigger
+  - FormWindow
+  - FormLOV
+  - FormAlert
+  - FormParameter
+  
+  # Oracle Forms Libraries and Menus
+  - OracleLibrary
+  - OracleMenu
+  - MenuItem
+  - FormsProcedure
+  - FormsFunction
+  
+  # Oracle Reports
+  - OracleReport
+  - ReportGroup
+  - ReportQuery
+  - ReportParameter
+  - ReportLayout
+  
+  # Oracle APEX Conversion Entities
+  - ConvertedOracleForm
+  - ConvertedObjectLibrary
+  - ConvertedMenuModule
+  - PLSQLLibraryText
+  - ApexConversionProject
+  - ConversionMetadata
+  
+  # PL/SQL Entities
+  - PLSQLPackage
+  - PLSQLProcedure
+  - PLSQLFunction
+  - PLSQLCursor
+  - PLSQLException
+  - PLSQLType
+  - PLSQLRecord
+  - PLSQLCollection
+  
+  # Database Objects
+  - OracleTable
+  - OracleView
+  - OracleMaterializedView
+  - OracleSequence
+  - OracleIndex
+  - OracleTrigger
+  - OracleConstraint
+  - OracleSynonym
+  
+  # Database Schema Objects
+  - OracleSchema
+  - OracleTablespace
+  - OracleUser
+  - OracleRole
+  - OraclePrivilege
+  
+  # Business and Data Flow
+  - BusinessProcess
+  - DataFlow
+  - BusinessEntity
+  - DataModel
+  - Transaction
+  
+  # Configuration
+  - OracleConfiguration
+  - DatabaseLink
+  - ConnectionString
+  - FormConfiguration
+  
+  # Documentation
+  - TechnicalSpecification
+  - UserDocumentation
+  - SystemDocumentation
+
+# Relationship types allowed in the knowledge graph
+allowed_relationships:
+  # Forms Structure Relationships
+  - HAS_BLOCK
+  - HAS_ITEM
+  - HAS_CANVAS
+  - HAS_TRIGGER
+  - HAS_WINDOW
+  - HAS_LOV
+  - HAS_ALERT
+  - BELONGS_TO_FORM
+  
+  # Forms Data Relationships
+  - BASED_ON_TABLE
+  - BASED_ON_VIEW
+  - MASTER_DETAIL
+  - LOOKUP_TO
+  - REFERENCES_ITEM
+  - POPULATES_FROM
+  
+  # Forms Navigation
+  - NAVIGATES_TO
+  - CALLS_FORM
+  - OPENS_FORM
+  - CLOSES_FORM
+  - PASSES_PARAMETER
+  
+  # PL/SQL Relationships
+  - CONTAINS_PROCEDURE
+  - CONTAINS_FUNCTION
+  - CONTAINS_CURSOR
+  - CONTAINS_EXCEPTION
+  - CALLS_PROCEDURE
+  - CALLS_FUNCTION
+  - USES_CURSOR
+  - RAISES_EXCEPTION
+  - HANDLES_EXCEPTION
+  
+  # Database Relationships
+  - BELONGS_TO_SCHEMA
+  - HAS_COLUMN
+  - HAS_INDEX
+  - HAS_TRIGGER
+  - HAS_CONSTRAINT
+  - REFERENCES_TABLE
+  - FOREIGN_KEY_TO
+  - PRIMARY_KEY_OF
+  
+  # Data Access Relationships
+  - SELECTS_FROM
+  - INSERTS_INTO
+  - UPDATES
+  - DELETES_FROM
+  - USES_SEQUENCE
+  - ACCESSES_TABLE
+  - QUERIES_VIEW
+  
+  # Dependencies
+  - DEPENDS_ON
+  - USES
+  - REQUIRES
+  - IMPORTS
+  - INCLUDES
+  - EXTENDS
+  - IMPLEMENTS
+  
+  # Business Process Relationships
+  - PROCESSES
+  - MANAGES
+  - HANDLES
+  - SUPPORTS
+  - VALIDATES
+  - CALCULATES
+  - TRANSFORMS
+  
+  # Execution Relationships
+  - EXECUTES
+  - TRIGGERS
+  - INVOKES
+  - FIRES
+  - RUNS
+  - COMMITS
+  - ROLLBACKS
+  
+  # Configuration Relationships
+  - CONFIGURES
+  - CONNECTS_TO
+  - USES_LINK
+  - DEFINES
+  - SETS_PROPERTY
+  
+  # Documentation Relationships
+  - DOCUMENTS
+  - DESCRIBES
+  - SPECIFIES
+  - REFERENCES
+  - EXPLAINS
+  
+  # APEX Conversion Relationships
+  - CONVERTED_FROM
+  - PART_OF_CONVERSION
+  - XML_REPRESENTS
+  - ORIGINAL_BINARY_FILE
+  - CONVERSION_DEPENDENCY
+  - APEX_MIGRATION_TARGET
+  - PRESERVES_METADATA
+  - MAPS_TO_APEX_COMPONENT

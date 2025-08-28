@@ -12,6 +12,8 @@ from langchain_core.documents import Document
 from langchain_community.graphs.graph_document import GraphDocument
 from langchain_core.prompts import ChatPromptTemplate
 import PyPDF2
+import yaml
+from pathlib import Path as PathLib
 
 
 @dataclass
@@ -149,6 +151,36 @@ class FileAnalyzer:
         '.prc': 'prc',
         '.proc': 'prc',
         
+        # Oracle Forms files
+        '.fmb': 'oracle_form',      # Oracle Forms binary
+        '.fmx': 'oracle_form',      # Oracle Forms executable
+        '.fmt': 'oracle_form',      # Oracle Forms template
+        '.pll': 'oracle_library',   # Oracle Forms library
+        '.plx': 'oracle_library',   # Oracle Forms library executable
+        '.mmb': 'oracle_menu',      # Oracle Forms menu
+        '.mmx': 'oracle_menu',      # Oracle Forms menu executable
+        '.olb': 'oracle_objectlib', # Oracle Forms object library
+        
+        # Oracle Reports files
+        '.rdf': 'oracle_report',    # Oracle Reports definition
+        '.rex': 'oracle_report',    # Oracle Reports executable
+        '.rep': 'oracle_report',    # Oracle Reports
+        
+        # PL/SQL files
+        '.pks': 'plsql_package',    # PL/SQL package specification
+        '.pkb': 'plsql_package',    # PL/SQL package body
+        '.fnc': 'plsql_function',   # PL/SQL function
+        '.trg': 'plsql_trigger',    # PL/SQL trigger
+        '.typ': 'plsql_type',       # PL/SQL type
+        '.tps': 'plsql_type',       # PL/SQL type specification
+        '.tpb': 'plsql_type',       # PL/SQL type body
+        
+        # Oracle configuration files
+        '.ora': 'oracle_config',    # Oracle configuration
+        
+        # Oracle Forms APEX conversion files
+        '.pld': 'plsql_library_text',  # PL/SQL library text format (converted from .pll)
+        
         # Scripting
         '.pl': 'perl',
         '.pm': 'perl',
@@ -202,7 +234,7 @@ class FileAnalyzer:
         '.copy', '.jcl', '.prc', '.proc', '.pl', '.pm', '.perl', '.csv',
         '.tsv', '.json', '.jsonl', '.xml', '.xsd', '.xsl', '.xslt', '.html',
         '.htm', '.xhtml', '.yaml', '.yml', '.ini', '.cfg', '.conf', '.config',
-        '.properties', '.toml'
+        '.properties', '.toml', '.pks', '.pkb', '.fnc', '.trg', '.typ', '.tps', '.tpb', '.ora', '.pld'
     }
     
     def __init__(self, ignore_list: Optional[set[str]] = None):
@@ -227,9 +259,53 @@ class FileAnalyzer:
         self.ignored_files_by_type = defaultdict(int)
         self.processing_errors = []
     
+    def load_graph_schema(self, analysis_context: str = "legacy") -> Dict[str, List[str]]:
+        """
+        Load graph schema configuration from YAML file
+        
+        Args:
+            analysis_context: The analysis context (legacy, oracle, etc.)
+            
+        Returns:
+            Dictionary with 'allowed_nodes' and 'allowed_relationships' lists
+        """
+        try:
+            # Construct path to schema file
+            current_dir = PathLib(__file__).parent
+            schema_file = current_dir / "config" / "graph_schemas" / f"{analysis_context}.yaml"
+            
+            if not schema_file.exists():
+                print(f"⚠️ Schema file not found: {schema_file}")
+                print(f"   Falling back to default (no restrictions)")
+                return {"allowed_nodes": [], "allowed_relationships": []}
+            
+            with open(schema_file, 'r', encoding='utf-8') as f:
+                schema_config = yaml.safe_load(f)
+            
+            # Validate schema structure
+            if not isinstance(schema_config, dict):
+                print(f"⚠️ Invalid schema format in {schema_file}")
+                return {"allowed_nodes": [], "allowed_relationships": []}
+            
+            allowed_nodes = schema_config.get('allowed_nodes', [])
+            allowed_relationships = schema_config.get('allowed_relationships', [])
+            
+            print(f"📋 Loaded schema for '{analysis_context}' context:")
+            print(f"   Allowed nodes: {len(allowed_nodes)}")
+            print(f"   Allowed relationships: {len(allowed_relationships)}")
+            
+            return {
+                "allowed_nodes": allowed_nodes,
+                "allowed_relationships": allowed_relationships
+            }
+            
+        except Exception as e:
+            print(f"⚠️ Error loading schema for '{analysis_context}': {e}")
+            return {"allowed_nodes": [], "allowed_relationships": []}
+    
     def get_file_type(self, file_path: Path) -> str:
         """
-        Determine file type based on extension
+        Determine file type based on extension and Oracle APEX conversion suffixes
         
         Args:
             file_path: Path to the file
@@ -237,6 +313,20 @@ class FileAnalyzer:
         Returns:
             File type string
         """
+        filename = file_path.name.lower()
+        
+        # Check for Oracle APEX conversion suffixes first
+        oracle_conversion_suffixes = {
+            '_fmb.xml': 'oracle_form_xml',      # Converted Oracle Forms XML
+            '_olb.xml': 'oracle_library_xml',   # Converted Object Library XML  
+            '_mmb.xml': 'oracle_menu_xml',      # Converted Menu Module XML
+        }
+        
+        for suffix, file_type in oracle_conversion_suffixes.items():
+            if filename.endswith(suffix):
+                return file_type
+        
+        # Fall back to extension-based detection
         extension = file_path.suffix.lower()
         return self.FILE_TYPE_MAPPINGS.get(extension, 'unknown')
     
@@ -250,7 +340,20 @@ class FileAnalyzer:
         Returns:
             Number of lines in the file
         """
-        if file_path.suffix.lower() not in self.TEXT_BASED_EXTENSIONS:
+        # Use get_file_type to handle both extensions and suffixes
+        file_type = self.get_file_type(file_path)
+        
+        # Check if this file type should be line-counted
+        oracle_conversion_text_types = {
+            'oracle_form_xml', 'oracle_library_xml', 'oracle_menu_xml', 'plsql_library_text'
+        }
+        
+        is_text_based = (
+            file_path.suffix.lower() in self.TEXT_BASED_EXTENSIONS or
+            file_type in oracle_conversion_text_types
+        )
+        
+        if not is_text_based:
             return 0
         
         try:
@@ -543,7 +646,7 @@ class FileAnalyzer:
         return files_metadata, grouped_files, summary
     
     # Return a set of additional instructions for the LLMGraphTransformer using the file type extensions and a given context
-    def get_additional_instructions(self,file_type:str, context: str) -> str:
+    def get_additional_instructions(self, file_type: str, context: str, analysis_context: str = "legacy") -> str:
         """
         Get additional instructions for LLMGraphTransformer based on context
         
@@ -565,6 +668,28 @@ Important constraints:
 - Do not create orphaned nodes with no parent relationships
 - Do not create duplicate nodes or relationships
 - Do not create nodes for code variables or code literals"""
+
+        # Handle Oracle context with different default instructions
+        if analysis_context == "oracle":
+            oracle_context = "Oracle Forms and PL/SQL application analysis"
+            default_instructions = """You are a highly experienced Oracle database and application developer who understands Oracle Forms, PL/SQL, and related Oracle technologies.
+You are focused on extracting Oracle-specific entities such as forms, blocks, items, triggers, packages, procedures, functions, tables, views, and their relationships.
+You should also identify business domain entities and data flow patterns from Oracle applications.
+
+Create a knowledge graph from Oracle Forms, PL/SQL code, and documentation extracting the main entities and relationships:
+- Map Oracle Forms structure (forms, blocks, items, canvases, triggers) to the knowledge graph
+- Extract PL/SQL packages, procedures, functions, cursors, exceptions, and their dependencies
+- Identify database objects (tables, views, sequences, indexes) and their relationships
+- Extract data flow patterns and business logic from triggers and PL/SQL code
+- Include Oracle-specific metadata such as form properties, item properties, and database object attributes
+- Identify Oracle Reports, Oracle Workflow, and other Oracle stack components
+- Map database constraints, foreign keys, and referential integrity relationships
+Important constraints:
+- Do not create orphaned nodes with no parent relationships
+- Do not create duplicate nodes or relationships
+- Focus on Oracle-specific patterns and conventions
+- Pay attention to PL/SQL exception handling and transaction control"""
+            context = oracle_context
 
         specific_instructions = ""
         # for each file type in the FILE_TYPE_MAPPINGS, eg python, shell scripts, sql return a different set of instructions
@@ -628,6 +753,34 @@ Important constraints:
             specific_instructions = f"TAR-specific instructions: Focus on extracting files, directories, and their relationships. Identify dependencies between archived files. Pay attention to archive structures."
         elif file_type == 'gzip':
             specific_instructions = f"GZIP-specific instructions: Focus on extracting compressed files and their relationships. Identify dependencies between compressed files. Pay attention to compression formats."
+        # Oracle-specific file type instructions
+        elif file_type == 'oracle_form':
+            specific_instructions = "Oracle Forms-specific instructions: Focus on extracting form blocks, items, triggers, canvases, and their relationships. Identify data block relationships to database tables and master-detail relationships between blocks."
+        elif file_type == 'oracle_library':
+            specific_instructions = "Oracle Forms Library-specific instructions: Focus on extracting reusable procedures, functions, and objects. Identify dependencies between libraries and forms that use them."
+        elif file_type == 'oracle_menu':
+            specific_instructions = "Oracle Forms Menu-specific instructions: Focus on extracting menu structure, menu items, and their associated forms or procedures. Identify security and role-based access patterns."
+        elif file_type == 'oracle_report':
+            specific_instructions = "Oracle Reports-specific instructions: Focus on extracting report structure, data models, queries, and formatting. Identify parameter dependencies and data source relationships."
+        elif file_type == 'plsql_package':
+            specific_instructions = "PL/SQL Package-specific instructions: Focus on extracting package specifications and bodies, public and private procedures/functions, cursors, exceptions, and package variables. Identify dependencies between packages."
+        elif file_type == 'plsql_function':
+            specific_instructions = "PL/SQL Function-specific instructions: Focus on extracting function parameters, return types, local variables, and dependencies. Pay attention to deterministic functions and purity levels."
+        elif file_type == 'plsql_trigger':
+            specific_instructions = "PL/SQL Trigger-specific instructions: Focus on extracting trigger events, timing, affected tables, trigger logic, and dependencies on other database objects."
+        elif file_type == 'plsql_type':
+            specific_instructions = "PL/SQL Type-specific instructions: Focus on extracting object types, collection types, member methods, and type dependencies."
+        elif file_type == 'oracle_config':
+            specific_instructions = "Oracle Configuration-specific instructions: Focus on extracting configuration parameters, connection strings, resource definitions, and environment settings."
+        # Oracle APEX conversion file type instructions
+        elif file_type == 'oracle_form_xml':
+            specific_instructions = "Oracle Forms XML (APEX Conversion)-specific instructions: Focus on extracting XML structure representing converted Forms modules. Identify form blocks, items, triggers, and canvases from XML elements. Map original Forms metadata preserved in XML format to knowledge graph entities."
+        elif file_type == 'oracle_library_xml':
+            specific_instructions = "Oracle Object Library XML (APEX Conversion)-specific instructions: Focus on extracting XML structure representing converted Object Libraries. Identify reusable form objects, their properties, and dependencies from XML elements. Map library object relationships preserved in XML format."
+        elif file_type == 'oracle_menu_xml':
+            specific_instructions = "Oracle Menu XML (APEX Conversion)-specific instructions: Focus on extracting XML structure representing converted Menu Modules. Identify menu items, their hierarchy, associated forms or procedures, and security settings from XML elements."
+        elif file_type == 'plsql_library_text':
+            specific_instructions = "PL/SQL Library Text (.pld)-specific instructions: Focus on extracting PL/SQL procedures, functions, cursors, and exceptions from text format library files. These are converted from binary .pll files for APEX migration. Identify library dependencies and public/private interfaces."
         else:
             specific_instructions = f"General instructions for {file_type}: Focus on extracting relevant entities, relationships, and patterns based on the file type. Identify dependencies and interactions between components. Pay attention to conventions and best practices for the specific file type."
 
@@ -639,7 +792,8 @@ Important constraints:
     async def create_knowledge_graph(self, 
                               files_metadata: List[FileMetadata], 
                               llm_model,
-                              graph_store) -> List[GraphDocument]:
+                              graph_store,
+                              analysis_context: str = "legacy") -> List[GraphDocument]:
         """
         Create knowledge graph using LangChain LLMGraphTransformer
         
@@ -655,7 +809,15 @@ Important constraints:
         # Create documents from file metadata and contents
 
         content_type = files_metadata[0].file_type if files_metadata else 'unknown'
-        context = f"Legacy Application modernization"
+        
+        # Set context based on analysis_context
+        if analysis_context == "oracle":
+            context = "Oracle Forms and PL/SQL application analysis"
+        else:
+            context = "Legacy Application modernization"
+        
+        # Load graph schema configuration
+        schema_config = self.load_graph_schema(analysis_context)
 
         documents = []
         for metadata in files_metadata:
@@ -695,12 +857,29 @@ Important constraints:
             print(f"Modified Date: {doc.metadata['modified_date']}")
             print(f"Content: {doc.page_content[:500]}...")  # Display first 500 chars of content
 
-            # Configure LLMGraphTransformer for application modernization
-        transformer = LLMGraphTransformer(
-            llm=llm_model,
-            node_properties=True,
-            relationship_properties=True,
-            additional_instructions=self.get_additional_instructions(content_type, context),)
+        # Configure LLMGraphTransformer with schema restrictions
+        transformer_kwargs = {
+            "llm": llm_model,
+            "node_properties": True,
+            "relationship_properties": True,
+            "additional_instructions": self.get_additional_instructions(content_type, context, analysis_context)
+        }
+        
+        # Add allowed nodes and relationships if specified in schema
+        allowed_nodes=[]
+        allowed_relationships=[]
+        if schema_config.get("allowed_nodes"):
+            transformer_kwargs["allowed_nodes"] = schema_config["allowed_nodes"]
+            allowed_nodes = schema_config["allowed_nodes"]
+            print(f"🎯 Restricting to {len(schema_config['allowed_nodes'])} allowed node types")
+        
+        if schema_config.get("allowed_relationships"):
+            transformer_kwargs["allowed_relationships"] = schema_config["allowed_relationships"]
+            allowed_relationships= schema_config["allowed_relationships"]
+            print(f"🔗 Restricting to {len(schema_config['allowed_relationships'])} allowed relationship types")
+        
+
+        transformer = LLMGraphTransformer(**transformer_kwargs)
      
         
         # Transform to graph documents

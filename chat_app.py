@@ -39,10 +39,7 @@ except ImportError:
 
 # MCP imports using FastMCP
 import shutil
-import json
-import uuid
 import logging
-import time
 
 # FastMCP V2 imports
 try:
