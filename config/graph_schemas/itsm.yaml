@@ -1,0 +1,215 @@
+# ITSM Data Analysis Schema Configuration
+# This file defines the allowed nodes and relationships for ITSM ticket and process analysis
+
+# Node types allowed in the knowledge graph
+allowed_nodes:
+  # ITSM Core Entities
+  - Incident
+  - Problem
+  - Change
+  - ChangeRequest
+  - ServiceRequest
+  - Task
+  - WorkOrder
+  - Asset
+  - ConfigurationItem
+  - Service
+  - ServiceOffering
+  
+  # ITSM Process Entities
+  - ITSMProcess
+  - Workflow
+  - ApprovalProcess
+  - EscalationRule
+  - SLA
+  - OLA
+  - UC
+  
+  # People and Organizations
+  - User
+  - Agent
+  - Technician
+  - Approver
+  - Group
+  - Team
+  - Department
+  - Organization
+  - Customer
+  - Vendor
+  
+  # Categories and Classifications
+  - Category
+  - SubCategory
+  - Priority
+  - Urgency
+  - Impact
+  - Status
+  - State
+  - Resolution
+  - ClosureCode
+  
+  # Infrastructure and Technical
+  - Application
+  - System
+  - Server
+  - Database
+  - Network
+  - Component
+  - Location
+  - Site
+  - DataCenter
+  
+  # Knowledge and Documentation
+  - KnowledgeArticle
+  - Solution
+  - Workaround
+  - FAQ
+  - Documentation
+  - Template
+  - Procedure
+  - Checklist
+  
+  # Temporal and Metrics
+  - TimeMetric
+  - SLAMetric
+  - PerformanceMetric
+  - AuditLog
+  - HistoryRecord
+
+# Relationship types allowed in the knowledge graph
+# Format: Triple relationships as [source_node, relationship_type, target_node]
+# This provides precise control over ITSM-specific entity relationships
+allowed_relationships:
+  # Incident Management Relationships
+  - [Incident, ASSIGNED_TO, Agent]
+  - [Incident, ASSIGNED_TO, Group]
+  - [Incident, REPORTED_BY, User]
+  - [Incident, AFFECTS, ConfigurationItem]
+  - [Incident, AFFECTS, Service]
+  - [Incident, HAS_CATEGORY, Category]
+  - [Incident, HAS_PRIORITY, Priority]
+  - [Incident, HAS_STATUS, Status]
+  - [Incident, RELATED_TO, Problem]
+  - [Incident, DUPLICATES, Incident]
+  - [Incident, RESOLVED_BY, Solution]
+  - [Incident, ESCALATED_TO, Group]
+  
+  # Problem Management Relationships
+  - [Problem, ASSIGNED_TO, Agent]
+  - [Problem, ASSIGNED_TO, Team]
+  - [Problem, CAUSED_BY, ConfigurationItem]
+  - [Problem, AFFECTS, Service]
+  - [Problem, HAS_CATEGORY, Category]
+  - [Problem, HAS_PRIORITY, Priority]
+  - [Problem, GENERATES, Incident]
+  - [Problem, HAS_WORKAROUND, Workaround]
+  - [Problem, RESOLVED_BY, Solution]
+  - [Problem, DOCUMENTED_IN, KnowledgeArticle]
+  
+  # Change Management Relationships
+  - [Change, REQUESTED_BY, User]
+  - [Change, ASSIGNED_TO, Agent]
+  - [Change, APPROVED_BY, Approver]
+  - [Change, AFFECTS, ConfigurationItem]
+  - [Change, AFFECTS, Service]
+  - [Change, HAS_CATEGORY, Category]
+  - [Change, HAS_PRIORITY, Priority]
+  - [Change, HAS_STATUS, Status]
+  - [Change, IMPLEMENTS, Solution]
+  - [Change, CONTAINS, Task]
+  - [Change, FOLLOWS, ApprovalProcess]
+  - [Change, SCHEDULED_FOR, TimeMetric]
+  
+  # Service Request Relationships
+  - [ServiceRequest, REQUESTED_BY, User]
+  - [ServiceRequest, ASSIGNED_TO, Agent]
+  - [ServiceRequest, FULFILLED_BY, Service]
+  - [ServiceRequest, HAS_CATEGORY, Category]
+  - [ServiceRequest, HAS_PRIORITY, Priority]
+  - [ServiceRequest, APPROVED_BY, Approver]
+  - [ServiceRequest, CONTAINS, Task]
+  
+  # Asset and Configuration Management
+  - [Asset, BELONGS_TO, Organization]
+  - [Asset, MANAGED_BY, Agent]
+  - [Asset, LOCATED_AT, Location]
+  - [Asset, DEPENDS_ON, Asset]
+  - [Asset, SUPPORTS, Service]
+  - [ConfigurationItem, INSTALLED_ON, Asset]
+  - [ConfigurationItem, CONNECTS_TO, ConfigurationItem]
+  - [ConfigurationItem, SUPPORTS, Service]
+  - [ConfigurationItem, HAS_STATUS, Status]
+  
+  # Service Management Relationships
+  - [Service, PROVIDED_BY, Organization]
+  - [Service, MANAGED_BY, Agent]
+  - [Service, SUPPORTS, User]
+  - [Service, DEPENDS_ON, Service]
+  - [Service, USES, ConfigurationItem]
+  - [Service, GOVERNED_BY, SLA]
+  - [ServiceOffering, DELIVERS, Service]
+  
+  # User and Group Relationships
+  - [User, BELONGS_TO, Group]
+  - [User, BELONGS_TO, Department]
+  - [User, WORKS_AT, Location]
+  - [Agent, MEMBER_OF, Team]
+  - [Agent, SPECIALIZES_IN, Category]
+  - [Group, OWNS, Service]
+  - [Team, RESPONSIBLE_FOR, ITSMProcess]
+  
+  # Process and Workflow Relationships
+  - [ITSMProcess, CONTAINS, Workflow]
+  - [Workflow, HAS_STEP, Task]
+  - [Workflow, TRIGGERS, EscalationRule]
+  - [ApprovalProcess, REQUIRES, Approver]
+  - [EscalationRule, ESCALATES_TO, Group]
+  - [SLA, APPLIES_TO, Service]
+  - [SLA, MEASURES, TimeMetric]
+  
+  # Knowledge Management Relationships
+  - [KnowledgeArticle, DESCRIBES, Problem]
+  - [KnowledgeArticle, CONTAINS, Solution]
+  - [KnowledgeArticle, CATEGORIZED_AS, Category]
+  - [Solution, SOLVES, Problem]
+  - [Solution, RESOLVES, Incident]
+  - [Workaround, MITIGATES, Problem]
+  - [FAQ, ANSWERS, Category]
+  - [Documentation, DESCRIBES, Procedure]
+  
+  # Category and Classification Relationships
+  - [Category, HAS_SUBCATEGORY, SubCategory]
+  - [Priority, BASED_ON, Impact]
+  - [Priority, BASED_ON, Urgency]
+  - [Status, TRANSITIONS_TO, Status]
+  - [Resolution, CLOSES_WITH, ClosureCode]
+  
+  # Infrastructure Relationships
+  - [Application, RUNS_ON, Server]
+  - [Application, USES, Database]
+  - [Server, LOCATED_AT, DataCenter]
+  - [System, CONTAINS, Component]
+  - [Network, CONNECTS, Server]
+  - [Component, DEPENDS_ON, Component]
+  
+  # Temporal and Audit Relationships
+  - [TimeMetric, MEASURES, Incident]
+  - [TimeMetric, MEASURES, Change]
+  - [SLAMetric, TRACKS, SLA]
+  - [PerformanceMetric, EVALUATES, Service]
+  - [AuditLog, RECORDS, Change]
+  - [HistoryRecord, TRACKS, ConfigurationItem]
+  
+  # Communication and Collaboration
+  - [Agent, COMMUNICATES_WITH, User]
+  - [Team, COLLABORATES_WITH, Team]
+  - [Vendor, PROVIDES, Service]
+  - [Customer, USES, Service]
+  
+  # Process Flow and Dependencies
+  - [Task, DEPENDS_ON, Task]
+  - [Task, ASSIGNED_TO, Agent]
+  - [Task, PART_OF, Change]
+  - [Task, FOLLOWS, Template]
+  - [WorkOrder, CONTAINS, Task]
+  - [Checklist, GUIDES, Task]

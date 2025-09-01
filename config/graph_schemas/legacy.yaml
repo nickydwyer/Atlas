@@ -46,14 +46,14 @@ allowed_nodes:
   - Workflow
   
   # Documentation
-  - Documentation
+  - Document
   - Specification
   - UserGuide
   - API
   - Contract
   
   # Legacy Mainframe
-  - MainframeJob
+  - Job
   - BatchProgram
   - ScreenMap
   - Transaction
@@ -61,57 +61,75 @@ allowed_nodes:
   - Copybook
 
 # Relationship types allowed in the knowledge graph
+# Format: Triple relationships as [source_node, relationship_type, target_node]
+# This provides precise control over which node types can be connected
 allowed_relationships:
-  # Structural relationships
-  - CONTAINS
-  - BELONGS_TO
-  - PART_OF
-  - COMPOSED_OF
+  # System Architecture relationships
+  - [System, CONTAINS, Application]
+  - [System, CONTAINS, Service]
+  - [Application, CONTAINS, Component]
+  - [Application, CONTAINS, Module]
+  - [Component, CONTAINS, Class]
+  - [Component, CONTAINS, Function]
+  - [Module, CONTAINS, Function]
+  - [Module, CONTAINS, Class]
   
   # Dependency relationships
-  - DEPENDS_ON
-  - USES
-  - REQUIRES
-  - IMPORTS
-  - INCLUDES
-  
-  # Functional relationships
-  - CALLS
-  - INVOKES
-  - EXECUTES
-  - TRIGGERS
-  - IMPLEMENTS
-  - EXTENDS
-  - INHERITS_FROM
+  - [Application, DEPENDS_ON, System]
+  - [Service, DEPENDS_ON, Application]
+  - [Component, DEPENDS_ON, Library]
+  - [Component, DEPENDS_ON, Framework]
+  - [Module, IMPORTS, Module]
+  - [Class, EXTENDS, Class]
+  - [Class, IMPLEMENTS, Interface]
+  - [Function, CALLS, Function]
+  - [Procedure, CALLS, Procedure]
+  - [Method, CALLS, Method]
   
   # Data relationships
-  - READS_FROM
-  - WRITES_TO
-  - ACCESSES
-  - MODIFIES
-  - STORES_IN
-  - RETRIEVES_FROM
+  - [Application, READS_FROM, Database]
+  - [Application, WRITES_TO, Database]
+  - [Service, ACCESSES, Table]
+  - [Component, USES, DataSource]
+  - [Function, MODIFIES, File]
+  - [Program, STORES_IN, Repository]
+  - [BatchProgram, READS_FROM, Dataset]
+  - [BatchProgram, WRITES_TO, Dataset]
   
-  # Communication relationships
-  - CONNECTS_TO
-  - COMMUNICATES_WITH
-  - SENDS_TO
-  - RECEIVES_FROM
+  # Legacy Mainframe relationships
+  - [Job, CONTAINS, BatchProgram]
+  - [Transaction, USES, ScreenMap]
+  - [BatchProgram, USES, Copybook]
+  - [Program, INCLUDES, Copybook]
+  - [ScreenMap, REFERENCES, Table]
   
   # Business relationships
-  - PROCESSES
-  - MANAGES
-  - HANDLES
-  - SUPPORTS
-  - SERVES
+  - [BusinessProcess, MANAGES, BusinessEntity]
+  - [Workflow, PROCESSES, BusinessEntity]
+  - [Application, SUPPORTS, BusinessProcess]
+  - [Service, HANDLES, BusinessRule]
+  - [Component, SERVES, Domain]
+  
+  # Infrastructure relationships
+  - [Application, DEPLOYED_ON, Server]
+  - [Service, RUNS_ON, Environment]
+  - [Configuration, CONFIGURES, Application]
+  - [Deployment, TARGETS, Server]
   
   # Documentation relationships
-  - DOCUMENTS
-  - DESCRIBES
-  - SPECIFIES
-  - REFERENCES
+  - [Document, DESCRIBES, Application]
+  - [Document, DESCRIBES, System]
+  - [Specification, SPECIFIES, Component]
+  - [UserGuide, DOCUMENTS, API]
+  - [Contract, DEFINES, Interface]
   
-  # Configuration relationships
-  - CONFIGURES
-  - DEFINES
-  - CONTROLS
+  # Code Structure relationships
+  - [Package, CONTAINS, Class]
+  - [Package, CONTAINS, Interface]
+  - [Namespace, CONTAINS, Function]
+  - [Class, CONTAINS, Method]
+  - [Interface, DEFINES, Method]
+  
+  # Configuration and Control
+  - [Configuration, CONTROLS, Service]
+  - [Environment, DEFINES, Configuration]

@@ -11,9 +11,14 @@ from file_analyzer import FileAnalyzer
 from typing import List, Dict, Any, Optional
 import hashlib
 import json
+import asyncio
 
-# Load environment variables
-load_dotenv()
+# Import environment configuration and validation
+from env_config import EnvironmentConfig
+from env_validator import EnvironmentValidator
+
+# Don't load .env by default - will be handled by EnvironmentConfig
+# load_dotenv()
 
 class Neo4jGraphStore:
     """Neo4j graph store for real metrics tracking"""
@@ -63,6 +68,18 @@ class Neo4jGraphStore:
                                             include_source=True,
                                             baseEntityLabel=True)
             print(f"✅ Added {len(graph_documents)} graph documents to Neo4j")
+    
+    def query(self, query_str, params=None):
+        """Execute a Cypher query on the Neo4j database
+        
+        Args:
+            query_str: Cypher query string
+            params: Optional parameters for the query
+            
+        Returns:
+            Query results
+        """
+        return self.graph.query(query_str, params or {})
     
     # Display a summary of the database. show list each label and relationship type with counts, in descending order.  
     def display_summary(self):  
@@ -612,22 +629,37 @@ def create_parser():
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
     # Common arguments that all commands share
-    def add_common_args(subparser, default_provider=None, default_model=None):
+    def add_common_args(subparser):
+        # Environment configuration arguments
+        subparser.add_argument(
+            '--env',
+            help='Environment to use (default: from ATLAS_ENV or development). Can be any name - will look for .env.{env} file.'
+        )
+        subparser.add_argument(
+            '--env-file',
+            help='Path to custom environment file (overrides --env)'
+        )
+        subparser.add_argument(
+            '--export',
+            action='store_true',
+            help='Export environment variables to shell before running command (useful for other tools)'
+        )
+        
+        # LLM configuration arguments
+        # Note: No defaults set here - they're applied from environment in main() function
         subparser.add_argument(
             '--llm-provider',
             choices=['openai', 'anthropic', 'ollama', 'google'],
-            default=default_provider,
-            help=f'LLM provider name (default: {default_provider})'
+            help='LLM provider name (default: from DEFAULT_LLM_PROVIDER environment variable)'
         )
         subparser.add_argument(
             '--model',
-            default=default_model,
-            help=f'Model name to use (default: {default_model})'
+            help='Model name to use (default: from DEFAULT_LLM_MODEL environment variable)'
         )
     
     # Analyze command
     analyze_parser = subparsers.add_parser('analyze', help='Analyze application landscapes')
-    add_common_args(analyze_parser, default_provider='openai', default_model='gpt-3.5-turbo')
+    add_common_args(analyze_parser)
     
     # Analysis-specific arguments
 
@@ -679,19 +711,157 @@ def create_parser():
     analyze_parser.add_argument(
         '--analysis-context',
         choices=['legacy', 'oracle', 'itsm'],
-        default='legacy',
-        help='Analysis context/persona: legacy (default), oracle (Oracle Forms/PLSQL), or itsm (IT Service Management tickets)'
+        help='Analysis context/persona: legacy (default), oracle (Oracle Forms/PLSQL), or itsm (IT Service Management tickets). Default from DEFAULT_ANALYSIS_CONTEXT environment variable.'
     )
     
     # Chat command  
     chat_parser = subparsers.add_parser('chat', help='Interactive chat interface')
-    add_common_args(chat_parser, default_provider='anthropic', default_model='claude-sonnet-4-20250514')
+    add_common_args(chat_parser)
     
     # Refine command
     refine_parser = subparsers.add_parser('refine', help='Refine and optimize knowledge graph')
-    add_common_args(refine_parser, default_provider='anthropic', default_model='claude-sonnet-4-20250514')
+    add_common_args(refine_parser)
+    
+    # Validate command
+    validate_parser = subparsers.add_parser('validate', help='Validate environment configuration and connectivity')
+    validate_parser.add_argument(
+        '--env',
+        help='Environment to validate (default: from ATLAS_ENV or development). Can be any name - will look for .env.{env} file.'
+    )
+    validate_parser.add_argument(
+        '--env-file',
+        help='Path to custom environment file (overrides --env)'
+    )
+    validate_parser.add_argument(
+        '--component',
+        choices=['neo4j', 'llm', 'mcp', 'all'],
+        default='all',
+        help='Component to validate (default: all)'
+    )
+    validate_parser.add_argument(
+        '--save-report',
+        help='Save validation report to specified file'
+    )
     
     return parser
+
+def export_environment_variables(env_config=None, show_values=False):
+    """Export environment variables from loaded config to shell environment.
+    Prints export commands that can be sourced by shell.
+    SECURITY: Does not display secret values by default for security.
+    
+    Args:
+        env_config: Environment configuration object (can be None for manual fallback)
+        show_values: If True, shows actual values (use with caution)
+    """
+    import sys
+    from pathlib import Path
+    
+    def parse_env_file_manual(env_file_path):
+        """Manually parse .env file as fallback when dotenv is not available."""
+        env_vars = {}
+        try:
+            with open(env_file_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    # Skip comments and empty lines
+                    if line and not line.startswith('#'):
+                        if '=' in line:
+                            key, value = line.split('=', 1)
+                            # Remove quotes if present
+                            if value.startswith('"') and value.endswith('"'):
+                                value = value[1:-1]
+                            elif value.startswith("'") and value.endswith("'"):
+                                value = value[1:-1]
+                            env_vars[key.strip()] = value.strip()
+        except Exception:
+            pass
+        return env_vars
+    
+    # Define which variables contain secrets/sensitive data
+    SECRET_VARS = {
+        'NEO4J_PASSWORD', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 
+        'GEMINI_API_KEY', 'LANGSMITH_API_KEY', 'TAVILY_API_KEY'
+    }
+    
+    # Check if output is being piped/redirected (for shell sourcing)
+    is_piped = not sys.stdout.isatty()
+    
+    if not is_piped:
+        print("# Environment variables from Atlas configuration", file=sys.stderr)
+        print("# To export to your shell, run:", file=sys.stderr)
+        env_arg = f" --env {getattr(env_config, 'env', 'default')}" if env_config and hasattr(env_config, 'env') and env_config.env else ""
+        print(f"# source <(python atlas.py analyze{env_arg} --export --folder-path dummy)", file=sys.stderr)
+        print("", file=sys.stderr)
+    
+    # Get environment variables - try from os.environ first, fallback to manual parsing
+    exported_vars = []
+    secret_vars_found = []
+    
+    # All variables to check (extended list)
+    all_vars = [
+        'NEO4J_URI', 'NEO4J_USERNAME', 'NEO4J_PASSWORD',
+        'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'TAVILY_API_KEY',
+        'OLLAMA_BASE_URL', 'DEFAULT_LLM_PROVIDER', 'DEFAULT_LLM_MODEL',
+        'LANGSMITH_API_KEY', 'LANGSMITH_PROJECT', 'LANGSMITH_ENDPOINT', 'LANGSMITH_TRACING',
+        'ATLAS_LOG_LEVEL', 'ATLAS_OUTPUT_DIR', 'LOCAL_NEO4J_MCP_SERVER_PATH'
+    ]
+    
+    # First try to get from os.environ (if dotenv was loaded successfully)
+    env_vars_found = {}
+    for var in all_vars:
+        value = os.getenv(var)
+        if value:
+            env_vars_found[var] = value
+    
+    # If no variables found in os.environ, try manual parsing as fallback
+    if not env_vars_found:
+        if not is_piped:
+            print("# Falling back to manual .env file parsing", file=sys.stderr)
+        
+        # Try to find and parse .env file manually
+        env_file = Path(__file__).parent / '.env'
+        if env_file.exists():
+            manual_vars = parse_env_file_manual(env_file)
+            for var in all_vars:
+                if var in manual_vars:
+                    env_vars_found[var] = manual_vars[var]
+    
+    # Export the found variables
+    for var in all_vars:
+        if var in env_vars_found:
+            value = env_vars_found[var]
+            if var in SECRET_VARS:
+                # For secrets: export actual value only when piped (for shell sourcing)
+                # Never display actual secret values to interactive console
+                if is_piped:
+                    print(f'export {var}="{value}"')
+                else:
+                    print(f'export {var}="[SECRET_MASKED]"')
+                secret_vars_found.append(var)
+                if not is_piped:
+                    print(f"# {var}=[HIDDEN] (secret value masked for security)", file=sys.stderr)
+            else:
+                # Non-secret values: show normally
+                print(f'export {var}="{value}"')
+                exported_vars.append(var)
+                if not is_piped:
+                    print(f"# {var}={value}", file=sys.stderr)
+    
+    if not is_piped:
+        if not exported_vars and not secret_vars_found:
+            print("# No environment variables found to export", file=sys.stderr)
+            print("# Make sure .env file exists and contains valid variables", file=sys.stderr)
+        else:
+            total_vars = len(exported_vars) + len(secret_vars_found)
+            print(f"", file=sys.stderr)
+            print(f"# Exported {total_vars} variables:", file=sys.stderr)
+            if exported_vars:
+                print(f"#   Public: {', '.join(exported_vars)}", file=sys.stderr)
+            if secret_vars_found:
+                print(f"#   Secret: {', '.join(secret_vars_found)} [values hidden]", file=sys.stderr)
+    
+    return exported_vars + secret_vars_found
 
 def validate_provider_config(provider):
     """Validate that the required configuration exists for the provider"""
@@ -713,11 +883,13 @@ def validate_provider_config(provider):
         # Note: Ollama doesn't require API keys, just the service to be running
 
 async def analyze_command(args):
-    # Ensure defaults are set if not provided
+    # Check if required arguments are set
     if not args.llm_provider:
-        args.llm_provider = 'openai'
+        print("❌ Error: No LLM provider specified. Use --llm-provider or set DEFAULT_LLM_PROVIDER in environment")
+        sys.exit(1)
     if not args.model:
-        args.model = 'gpt-4o-mini'
+        print("❌ Error: No model specified. Use --model or set DEFAULT_LLM_MODEL in environment")
+        sys.exit(1)
     
     print(f"Analyze command called with:")
     print(f"  LLM Provider: {args.llm_provider}")
@@ -1012,12 +1184,50 @@ async def analyze_command(args):
         else:
             print(f"\n💡 Tip: Use --generate-knowledge-graph and --index-documents flags to enable processing workflows.")
 
+async def validate_command(args):
+    """Run environment validation checks."""
+    print("\n🔍 Atlas Environment Validator")
+    print("="*60)
+    
+    # Load environment configuration
+    env_config = EnvironmentConfig(env=args.env, env_file=args.env_file)
+    env_result = env_config.load_environment()
+    
+    if not env_result['success']:
+        print(f"\n❌ Failed to load environment: {env_result['error']}")
+        if 'attempted_files' in env_result:
+            print(f"   Attempted files: {', '.join(env_result['attempted_files'])}")
+        print("\n💡 Tip: Create a .env file or use --env-file to specify a custom environment file")
+        sys.exit(1)
+    
+    # Create and run validator
+    validator = EnvironmentValidator(env_config)
+    
+    if args.component == 'all':
+        await validator.validate_all()
+    else:
+        await validator.validate_component(args.component)
+    
+    # Display report
+    validator.display_validation_report()
+    
+    # Save report if requested
+    if args.save_report:
+        validator.save_validation_report(args.save_report)
+    
+    # Exit with appropriate code
+    if validator.validation_results['summary']['failed'] > 0:
+        sys.exit(1)
+
+
 def chat_command(args):
-    # Ensure defaults are set if not provided
+    # Check if required arguments are set
     if not args.llm_provider:
-        args.llm_provider = 'anthropic'
+        print("❌ Error: No LLM provider specified. Use --llm-provider or set DEFAULT_LLM_PROVIDER in environment")
+        sys.exit(1)
     if not args.model:
-        args.model = 'claude-sonnet-4-20250514'
+        print("❌ Error: No model specified. Use --model or set DEFAULT_LLM_MODEL in environment")
+        sys.exit(1)
     
     print(f"🚀 Launching Atlas Discovery Agent...")
     print(f"  LLM Provider: {args.llm_provider}")
@@ -1043,6 +1253,12 @@ def chat_command(args):
         "--llm-provider", args.llm_provider,
         "--model", args.model
     ]
+    
+    # Add environment arguments if specified
+    if hasattr(args, 'env') and args.env:
+        cmd.extend(["--env", args.env])
+    if hasattr(args, 'env_file') and args.env_file:
+        cmd.extend(["--env-file", args.env_file])
     
     # Add port if specified (future enhancement)
     # if hasattr(args, 'port') and args.port:
@@ -1080,6 +1296,46 @@ async def main():
         parser.print_help()
         sys.exit(1)
     
+    # Load environment configuration for all commands
+    if args.command != 'validate':  # validate command handles its own env loading
+        env_config = EnvironmentConfig(
+            env=getattr(args, 'env', None),
+            env_file=getattr(args, 'env_file', None)
+        )
+        
+        # Load environment
+        env_result = env_config.load_environment()
+        if not env_result['success']:
+            print(f"\n❌ Failed to load environment configuration: {env_result['error']}")
+            print(f"   Attempted files: {', '.join(env_result['attempted_files'])}")
+            print("\n💡 Tip: Create a .env file or use --env-file to specify a custom environment file")
+            sys.exit(1)
+        
+        # Handle export flag - export variables and exit
+        if hasattr(args, 'export') and args.export:
+            try:
+                export_environment_variables(env_config)
+            except Exception as e:
+                # Fallback to manual parsing if env_config fails
+                print(f"# Warning: Environment config failed ({e}), using manual fallback", file=sys.stderr)
+                export_environment_variables(None)
+            return  # Exit after exporting
+        
+        # Apply default settings if not provided in command line
+        defaults = env_config.get_default_llm_config()
+        if hasattr(args, 'llm_provider'):
+            if not args.llm_provider and defaults['provider']:
+                args.llm_provider = defaults['provider']
+                print(f"📌 Using default LLM provider from environment: {args.llm_provider}")
+        if hasattr(args, 'model'):
+            if not args.model and defaults['model']:
+                args.model = defaults['model']
+                print(f"📌 Using default model from environment: {args.model}")
+        if hasattr(args, 'analysis_context'):
+            if not args.analysis_context:
+                args.analysis_context = env_config.get_default_analysis_context()
+                print(f"📌 Using default analysis context from environment: {args.analysis_context}")
+    
     # Route to appropriate command handler
     if args.command == 'analyze':
         await analyze_command(args)
@@ -1088,10 +1344,16 @@ async def main():
     elif args.command == 'refine':
         from refine_knowledge_base import refine_command
         await refine_command(args)
+    elif args.command == 'validate':
+        await validate_command(args)
     else:
         parser.print_help()
         sys.exit(1)
 
-if __name__ == '__main__':
+def run():
+    """Entry point for the atlas script"""
     import asyncio
     asyncio.run(main())
+
+if __name__ == '__main__':
+    run()

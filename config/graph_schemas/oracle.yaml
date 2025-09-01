@@ -45,6 +45,7 @@ allowed_nodes:
   - PLSQLType
   - PLSQLRecord
   - PLSQLCollection
+  - PLSQLTrigger
   
   # Database Objects
   - OracleTable
@@ -65,6 +66,7 @@ allowed_nodes:
   
   # Business and Data Flow
   - BusinessProcess
+  - BusinessRule
   - DataFlow
   - BusinessEntity
   - DataModel
@@ -77,114 +79,142 @@ allowed_nodes:
   - FormConfiguration
   
   # Documentation
+  - Document
   - TechnicalSpecification
   - UserDocumentation
   - SystemDocumentation
 
 # Relationship types allowed in the knowledge graph
+# Format: Triple relationships as [source_node, relationship_type, target_node]
+# This provides precise control over Oracle-specific entity relationships
 allowed_relationships:
-  # Forms Structure Relationships
-  - HAS_BLOCK
-  - HAS_ITEM
-  - HAS_CANVAS
-  - HAS_TRIGGER
-  - HAS_WINDOW
-  - HAS_LOV
-  - HAS_ALERT
-  - BELONGS_TO_FORM
+  # Oracle Forms Structure Relationships
+  - [OracleForm, HAS_BLOCK, FormBlock]
+  - [FormBlock, HAS_ITEM, FormItem]
+  - [OracleForm, HAS_CANVAS, FormCanvas]
+  - [OracleForm, HAS_TRIGGER, FormTrigger]
+  - [FormBlock, HAS_TRIGGER, FormTrigger]
+  - [FormItem, HAS_TRIGGER, FormTrigger]
+  - [OracleForm, HAS_WINDOW, FormWindow]
+  - [FormItem, HAS_LOV, FormLOV]
+  - [OracleForm, HAS_ALERT, FormAlert]
+  - [FormBlock, BELONGS_TO_FORM, OracleForm]
+  - [FormItem, BELONGS_TO_FORM, OracleForm]
   
   # Forms Data Relationships
-  - BASED_ON_TABLE
-  - BASED_ON_VIEW
-  - MASTER_DETAIL
-  - LOOKUP_TO
-  - REFERENCES_ITEM
-  - POPULATES_FROM
+  - [FormBlock, BASED_ON_TABLE, OracleTable]
+  - [FormBlock, BASED_ON_VIEW, OracleView]
+  - [FormBlock, MASTER_DETAIL, FormBlock]
+  - [FormItem, LOOKUP_TO, FormLOV]
+  - [FormItem, REFERENCES_ITEM, FormItem]
+  - [FormLOV, POPULATES_FROM, OracleTable]
+  - [FormLOV, POPULATES_FROM, OracleView]
   
-  # Forms Navigation
-  - NAVIGATES_TO
-  - CALLS_FORM
-  - OPENS_FORM
-  - CLOSES_FORM
-  - PASSES_PARAMETER
+  # Forms Navigation and Execution
+  - [OracleForm, NAVIGATES_TO, OracleForm]
+  - [FormTrigger, CALLS_FORM, OracleForm]
+  - [FormTrigger, OPENS_FORM, OracleForm]
+  - [FormTrigger, CLOSES_FORM, OracleForm]
+  - [OracleForm, PASSES_PARAMETER, FormParameter]
   
-  # PL/SQL Relationships
-  - CONTAINS_PROCEDURE
-  - CONTAINS_FUNCTION
-  - CONTAINS_CURSOR
-  - CONTAINS_EXCEPTION
-  - CALLS_PROCEDURE
-  - CALLS_FUNCTION
-  - USES_CURSOR
-  - RAISES_EXCEPTION
-  - HANDLES_EXCEPTION
+  # Oracle Libraries and Menus
+  - [OracleLibrary, CONTAINS_PROCEDURE, FormsProcedure]
+  - [OracleLibrary, CONTAINS_FUNCTION, FormsFunction]
+  - [OracleForm, USES, OracleLibrary]
+  - [OracleMenu, HAS_ITEM, MenuItem]
+  - [MenuItem, CALLS_FORM, OracleForm]
+  - [MenuItem, CALLS_PROCEDURE, FormsProcedure]
   
-  # Database Relationships
-  - BELONGS_TO_SCHEMA
-  - HAS_COLUMN
-  - HAS_INDEX
-  - HAS_TRIGGER
-  - HAS_CONSTRAINT
-  - REFERENCES_TABLE
-  - FOREIGN_KEY_TO
-  - PRIMARY_KEY_OF
+  # PL/SQL Package Relationships
+  - [PLSQLPackage, CONTAINS_PROCEDURE, PLSQLProcedure]
+  - [PLSQLPackage, CONTAINS_FUNCTION, PLSQLFunction]
+  - [PLSQLPackage, CONTAINS_CURSOR, PLSQLCursor]
+  - [PLSQLPackage, CONTAINS_EXCEPTION, PLSQLException]
+  - [PLSQLProcedure, CALLS_PROCEDURE, PLSQLProcedure]
+  - [PLSQLFunction, CALLS_FUNCTION, PLSQLFunction]
+  - [PLSQLProcedure, USES_CURSOR, PLSQLCursor]
+  - [PLSQLFunction, USES_CURSOR, PLSQLCursor]
+  - [PLSQLProcedure, RAISES_EXCEPTION, PLSQLException]
+  - [PLSQLFunction, RAISES_EXCEPTION, PLSQLException]
+  - [PLSQLProcedure, HANDLES_EXCEPTION, PLSQLException]
+  
+  # Database Object Relationships
+  - [OracleTable, BELONGS_TO_SCHEMA, OracleSchema]
+  - [OracleView, BELONGS_TO_SCHEMA, OracleSchema]
+  - [OracleSequence, BELONGS_TO_SCHEMA, OracleSchema]
+  - [OracleIndex, BELONGS_TO_SCHEMA, OracleSchema]
+  - [OracleTrigger, BELONGS_TO_SCHEMA, OracleSchema]
+  - [OracleTable, HAS_INDEX, OracleIndex]
+  - [OracleTable, HAS_TRIGGER, OracleTrigger]
+  - [OracleTable, HAS_CONSTRAINT, OracleConstraint]
+  - [OracleConstraint, REFERENCES_TABLE, OracleTable]
+  - [OracleTable, FOREIGN_KEY_TO, OracleTable]
   
   # Data Access Relationships
-  - SELECTS_FROM
-  - INSERTS_INTO
-  - UPDATES
-  - DELETES_FROM
-  - USES_SEQUENCE
-  - ACCESSES_TABLE
-  - QUERIES_VIEW
+  - [PLSQLProcedure, SELECTS_FROM, OracleTable]
+  - [PLSQLFunction, SELECTS_FROM, OracleTable]
+  - [PLSQLProcedure, INSERTS_INTO, OracleTable]
+  - [PLSQLProcedure, UPDATES, OracleTable]
+  - [PLSQLProcedure, DELETES_FROM, OracleTable]
+  - [PLSQLProcedure, USES_SEQUENCE, OracleSequence]
+  - [PLSQLFunction, USES_SEQUENCE, OracleSequence]
+  - [FormBlock, ACCESSES_TABLE, OracleTable]
+  - [FormBlock, QUERIES_VIEW, OracleView]
+  - [OracleView, SELECTS_FROM, OracleTable]
   
-  # Dependencies
-  - DEPENDS_ON
-  - USES
-  - REQUIRES
-  - IMPORTS
-  - INCLUDES
-  - EXTENDS
-  - IMPLEMENTS
+  # Oracle Reports Relationships
+  - [OracleReport, HAS_GROUP, ReportGroup]
+  - [ReportGroup, HAS_QUERY, ReportQuery]
+  - [OracleReport, HAS_PARAMETER, ReportParameter]
+  - [OracleReport, HAS_LAYOUT, ReportLayout]
+  - [ReportQuery, SELECTS_FROM, OracleTable]
+  - [ReportQuery, SELECTS_FROM, OracleView]
+  
+  # Dependencies and Usage
+  - [OracleForm, DEPENDS_ON, PLSQLPackage]
+  - [FormsProcedure, DEPENDS_ON, PLSQLPackage]
+  - [PLSQLPackage, DEPENDS_ON, PLSQLPackage]
+  - [OracleForm, USES, OracleSequence]
+  - [FormTrigger, USES, PLSQLFunction]
+  - [FormTrigger, USES, PLSQLProcedure]
   
   # Business Process Relationships
-  - PROCESSES
-  - MANAGES
-  - HANDLES
-  - SUPPORTS
-  - VALIDATES
-  - CALCULATES
-  - TRANSFORMS
+  - [BusinessProcess, PROCESSES, BusinessEntity]
+  - [OracleForm, MANAGES, BusinessEntity]
+  - [FormTrigger, HANDLES, BusinessRule]
+  - [PLSQLPackage, SUPPORTS, BusinessProcess]
+  - [FormItem, VALIDATES, BusinessEntity]
+  - [PLSQLFunction, CALCULATES, BusinessEntity]
+  - [PLSQLProcedure, TRANSFORMS, DataModel]
   
-  # Execution Relationships
-  - EXECUTES
-  - TRIGGERS
-  - INVOKES
-  - FIRES
-  - RUNS
-  - COMMITS
-  - ROLLBACKS
+  # Execution and Control Flow
+  - [FormTrigger, EXECUTES, PLSQLProcedure]
+  - [FormTrigger, TRIGGERS, FormTrigger]
+  - [PLSQLTrigger, FIRES, PLSQLProcedure]
+  - [Transaction, RUNS, PLSQLProcedure]
+  - [PLSQLProcedure, COMMITS, Transaction]
+  - [PLSQLProcedure, ROLLBACKS, Transaction]
   
   # Configuration Relationships
-  - CONFIGURES
-  - CONNECTS_TO
-  - USES_LINK
-  - DEFINES
-  - SETS_PROPERTY
+  - [OracleConfiguration, CONFIGURES, OracleForm]
+  - [FormConfiguration, CONFIGURES, FormBlock]
+  - [ConnectionString, CONNECTS_TO, OracleSchema]
+  - [DatabaseLink, USES_LINK, OracleSchema]
+  - [FormConfiguration, SETS_PROPERTY, FormItem]
   
   # Documentation Relationships
-  - DOCUMENTS
-  - DESCRIBES
-  - SPECIFIES
-  - REFERENCES
-  - EXPLAINS
+  - [TechnicalSpecification, DOCUMENTS, OracleForm]
+  - [UserDocumentation, DESCRIBES, OracleForm]
+  - [SystemDocumentation, DESCRIBES, PLSQLPackage]
+  - [TechnicalSpecification, SPECIFIES, FormBlock]
+  - [UserDocumentation, EXPLAINS, BusinessProcess]
   
   # APEX Conversion Relationships
-  - CONVERTED_FROM
-  - PART_OF_CONVERSION
-  - XML_REPRESENTS
-  - ORIGINAL_BINARY_FILE
-  - CONVERSION_DEPENDENCY
-  - APEX_MIGRATION_TARGET
-  - PRESERVES_METADATA
-  - MAPS_TO_APEX_COMPONENT
+  - [ConvertedOracleForm, CONVERTED_FROM, OracleForm]
+  - [ConvertedObjectLibrary, CONVERTED_FROM, OracleLibrary]
+  - [ConvertedMenuModule, CONVERTED_FROM, OracleMenu]
+  - [PLSQLLibraryText, CONVERTED_FROM, OracleLibrary]
+  - [ConvertedOracleForm, PART_OF_CONVERSION, ApexConversionProject]
+  - [ConvertedOracleForm, XML_REPRESENTS, OracleForm]
+  - [ConversionMetadata, PRESERVES_METADATA, OracleForm]
+  - [ConvertedOracleForm, MAPS_TO_APEX_COMPONENT, ApexConversionProject]

@@ -13,6 +13,7 @@ Atlas is an intelligent platform for analyzing, understanding, and discovering c
   - [Graph RAG Superiority Over Traditional RAG](#graph-rag-superiority-over-traditional-rag)
   - [Agentic AI and Interactive Knowledge Discovery](#agentic-ai-and-interactive-knowledge-discovery)
   - [The benefits of Graph RAG solutions](#the-benefits-of-graph-rag-solutions)
+- [🆕 Recent Enhancements](#-recent-enhancements)
 - [✨ Atlas Features](#-atlas-features)
 - [🚀 Quick Start](#-quick-start)
   - [Prerequisites](#prerequisites)
@@ -86,16 +87,41 @@ Multiple sources underline Graph RAG's significant advantages over traditional R
 - Token Efficiency Study: https://diamantai.substack.com/p/graph-rag-explained
 
 
+## 🆕 Recent Enhancements
+
+### Triple Relationship Support in Knowledge Graphs
+Atlas now supports precise relationship definitions using triple format `[Source, Relationship, Target]` in graph schemas, providing:
+- **Fine-grained control** over which node types can connect
+- **Schema validation** to ensure only valid relationships are created
+- **Better graph quality** with reduced noise and hallucinations
+- **Clearer semantics** for domain-specific knowledge graphs
+
+### Flexible Environment Configuration
+- **Any environment name** is now supported (not just dev/staging/prod)
+- **Custom environments** automatically look for `.env.{name}` files
+- **Client-specific** configurations like `.env.client1`, `.env.uat`, etc.
+- **Git security** - all `.env.*` files are automatically ignored
+
+### Default Configuration from Environment
+- Set `DEFAULT_LLM_PROVIDER` and `DEFAULT_LLM_MODEL` to avoid specifying them on each command
+- Set `DEFAULT_ANALYSIS_CONTEXT` to avoid specifying `--analysis-context` (defaults to 'legacy')
+- Run commands without specifying these arguments every time
+- Command-line arguments still override environment defaults when needed
+
 ## ✨ Atlas Features
 
 ### 🔍 **Repo and Folder Analysis**
 - **Multi-file Processing**: Analyze entire folder hierarchies or individual files
 - **Intelligent Filtering**: Support for file type filters and batch processing
 - **Metadata Extraction**: Comprehensive file analysis with statistics
+- **Multiple Analysis Contexts**: Specialized analyzers for different domains (legacy, Oracle, ITSM)
+- **Environment Management**: Support for development, staging, and production environments
 
 ### 🧠 **Knowledge Graph Generation**
 - **Neo4j Integration**: Create rich knowledge graphs from code analysis
 - **Entity Relationships**: Automatic extraction of functions, classes, and dependencies
+- **Triple Relationship Support**: Define precise relationships as [Source, Relationship, Target] tuples
+- **Schema Validation**: Configurable schemas with allowed nodes and relationships per context
 - **Real-time Statistics**: Track nodes, relationships, and processing progress
 
 ### 📄 **Document Vector Indexing**
@@ -114,6 +140,7 @@ Multiple sources underline Graph RAG's significant advantages over traditional R
 - **MCP Tool Integration**: Model Context Protocol for enhanced capabilities
 - **Multi-provider Support**: OpenAI, Anthropic, Ollama, and Google Gemini
 - **Streamlit UI**: Modern web interface for conversations
+- **Environment Validation**: Built-in connectivity and configuration validation
 
 ## 🚀 Quick Start
 
@@ -143,13 +170,44 @@ pip install -r requirements.txt
 
 4. **Configure environment:**
 ```bash
+# Copy and configure main environment file
 cp .env.template .env
 # Edit .env with your API keys and Neo4j configuration
+
+# Or create environment-specific configurations
+cp .env.dev.template .env.dev
+cp .env.staging.template .env.staging
+cp .env.prod.template .env.prod
 ```
 
 ### Environment Configuration
 
-Edit `.env` file with your settings:
+Atlas supports multiple environment configurations for different deployment scenarios. This allows easy switching between different Neo4j databases, API keys, and default settings.
+
+#### Flexible Environment Naming
+Atlas supports any environment name, not just the traditional dev/staging/prod:
+- Common environments map to predefined files: `dev` → `.env.dev`, `prod` → `.env.prod`
+- Any custom environment name works: `client1` → `.env.client1`, `testing` → `.env.testing`
+- All `.env.*` files are automatically ignored by git for security
+
+#### Basic Setup
+```bash
+# Copy the main template
+cp .env.template .env
+
+# Or create environment-specific files
+cp .env.dev.template .env.dev
+cp .env.staging.template .env.staging  
+cp .env.prod.template .env.prod
+```
+
+#### Environment File Structure
+Atlas looks for environment files in this order:
+1. Custom file specified with `--env-file`
+2. Environment-specific file (e.g., `.env.dev` for `--env dev`)
+3. Default `.env` file as fallback
+
+#### Required Environment Variables
 ```env
 # LLM Provider API Keys
 OPENAI_API_KEY=your_openai_key
@@ -161,6 +219,127 @@ OLLAMA_BASE_URL=http://localhost:11434
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your_password
+```
+
+#### Default Settings (New Feature)
+Set default provider, model, and analysis context to avoid specifying them on each command:
+```bash
+# In your .env file
+DEFAULT_LLM_PROVIDER=anthropic
+DEFAULT_LLM_MODEL=claude-sonnet-4-20250514
+DEFAULT_ANALYSIS_CONTEXT=oracle
+```
+
+With these defaults set, you can run:
+```bash
+# Instead of: python atlas.py analyze --llm-provider anthropic --model claude-sonnet-4-20250514 --analysis-context oracle --folder-path /path/to/code
+python atlas.py analyze --folder-path /path/to/code --generate-knowledge-graph
+
+# The defaults work for all commands
+python atlas.py chat
+python atlas.py refine
+```
+
+#### Environment Validation
+Use the validate command to check your environment configuration:
+```bash
+# Validate current environment
+python atlas.py validate
+
+# Validate specific environment
+python atlas.py validate --env production
+
+# Validate only Neo4j connectivity
+python atlas.py validate --component neo4j
+
+# Get detailed validation report
+python atlas.py validate --save-report environment_check.json
+```
+
+#### Exporting Environment Variables
+
+Atlas provides both automated and manual ways to export environment variables for use by other programs:
+
+##### Automated Export (Recommended)
+Use the `--export` flag to securely export variables to your shell:
+
+```bash
+# Export variables from default environment
+source <(python atlas.py analyze --export --folder-path dummy)
+
+# Export variables from specific environment
+source <(python atlas.py analyze --env dev --export --folder-path dummy)
+source <(python atlas.py analyze --env staging --export --folder-path dummy)
+source <(python atlas.py analyze --env prod --export --folder-path dummy)
+
+# Export and run command in one line
+source <(python atlas.py chat --env prod --export --folder-path dummy) && neo4j-admin console
+
+# Create aliases for easy environment switching
+alias atlas-env-dev='source <(python atlas.py analyze --env dev --export --folder-path dummy)'
+alias atlas-env-staging='source <(python atlas.py analyze --env staging --export --folder-path dummy)'
+alias atlas-env-prod='source <(python atlas.py analyze --env prod --export --folder-path dummy)'
+
+# Usage with aliases
+atlas-env-dev
+python some_other_tool.py  # Now has access to Atlas environment variables
+
+atlas-env-prod
+neo4j-admin console  # Uses production Neo4j settings
+```
+
+**Troubleshooting Export Issues:**
+
+If environment variables aren't being set properly:
+
+```bash
+# 1. Test the export function directly (shows masked secrets for security)
+python atlas.py analyze --export --folder-path dummy
+
+# 2. Check what gets exported when piped (actual values for shell sourcing)
+python atlas.py analyze --export --folder-path dummy > /tmp/atlas_exports.sh
+cat /tmp/atlas_exports.sh  # Review the export commands
+source /tmp/atlas_exports.sh  # Apply them
+rm /tmp/atlas_exports.sh  # Clean up
+
+# 3. Verify variables are set
+echo $NEO4J_URI
+echo $OPENAI_API_KEY  # Should show the actual key if properly sourced
+
+# 4. Debug with manual commands
+python atlas.py validate  # Check if .env file loads properly
+```
+
+##### Manual Export (Advanced Users)
+For advanced users who need manual control:
+
+```bash
+# Safe export with source (handles spaces and special characters)
+set -a && source .env.dev && set +a
+set -a && source .env.staging && set +a
+set -a && source .env.prod && set +a
+
+# Export specific variables (be careful with secrets)
+export NEO4J_URI=$(grep '^NEO4J_URI=' .env.prod | cut -d'=' -f2-)
+export DEFAULT_LLM_PROVIDER=$(grep '^DEFAULT_LLM_PROVIDER=' .env.prod | cut -d'=' -f2-)
+
+# One-time environment for single command (safer for secrets)
+env $(grep -v '^#' .env.prod | xargs) python external_tool.py
+```
+
+##### Security Notes
+- 🔒 The `--export` flag masks secret values in console output for security
+- 🔒 Secret values are still exported to shell environment for program use
+- 🔒 Avoid displaying secrets in console or logs
+- 🔒 Use `--export` instead of manual commands when possible
+
+##### Viewing Current Environment
+```bash
+# View Atlas-related environment variables
+printenv | grep -E "(OPENAI|ANTHROPIC|GEMINI|NEO4J|DEFAULT_LLM|ATLAS)"
+
+# Temporarily override environment for single command
+NEO4J_URI=bolt://localhost:7688 python atlas.py validate --component neo4j
 ```
 
 ## 📚 Usage
@@ -178,6 +357,38 @@ python atlas.py analyze --folder-path /path/to/your/code \
   --generate-knowledge-graph \
   --llm-provider openai \
   --model gpt-4o-mini
+```
+
+**Using Different Environments:**
+```bash
+# Use development environment
+python atlas.py analyze --env dev --folder-path /path/to/your/code --generate-knowledge-graph
+
+# Use staging environment  
+python atlas.py analyze --env staging --folder-path /path/to/your/code --generate-knowledge-graph
+
+# Use production environment
+python atlas.py analyze --env production --folder-path /path/to/your/code --generate-knowledge-graph
+
+# Use custom environment names (automatically looks for .env.{name})
+python atlas.py analyze --env client1 --folder-path /path/to/your/code --generate-knowledge-graph
+python atlas.py analyze --env testing --folder-path /path/to/your/code --generate-knowledge-graph
+python atlas.py analyze --env uat --folder-path /path/to/your/code --generate-knowledge-graph
+
+# Use custom environment file
+python atlas.py analyze --env-file .env.client1 --folder-path /path/to/your/code --generate-knowledge-graph
+```
+
+**Analysis Contexts (Specialized Analyzers):**
+```bash
+# Legacy application analysis (default)
+python atlas.py analyze --folder-path /path/to/legacy --analysis-context legacy --generate-knowledge-graph
+
+# Oracle Forms/PL-SQL analysis
+python atlas.py analyze --folder-path /path/to/oracle --analysis-context oracle --generate-knowledge-graph
+
+# ITSM ticket data analysis
+python atlas.py analyze --folder-path /path/to/itsm_data --analysis-context itsm --generate-knowledge-graph
 ```
 
 **With Document Vector Indexing:**
@@ -219,11 +430,28 @@ python atlas.py analyze --folder-path /path/to/code \
   --model gpt-4o-mini
 ```
 
+**Environment Export:**
+```bash
+# Export environment variables for other tools
+python atlas.py analyze --env prod --export --folder-path dummy
+
+# Combine with shell sourcing for immediate use
+source <(python atlas.py analyze --env prod --export --folder-path dummy)
+neo4j-admin console  # Now uses exported Neo4j settings
+```
+
 ### 🔧 Refine Command
 
 **Analyze and Optimize Knowledge Graph:**
 ```bash
+# Using default environment
 python atlas.py refine --llm-provider anthropic --model claude-sonnet-4-20250514
+
+# Using specific environment
+python atlas.py refine --env production --llm-provider anthropic --model claude-sonnet-4-20250514
+
+# Using default LLM settings (if configured in .env)
+python atlas.py refine --env production
 ```
 
 This will:
@@ -236,7 +464,14 @@ This will:
 
 **Interactive Chat Interface:**
 ```bash
+# Using default environment
 python atlas.py chat --llm-provider openai --model gpt-4o
+
+# Using specific environment
+python atlas.py chat --env staging --llm-provider openai --model gpt-4o
+
+# Using default LLM settings (if configured in .env)
+python atlas.py chat --env production
 ```
 
 **With MCP Tools:**
@@ -299,8 +534,10 @@ ollama pull nomic-embed-text  # For embeddings
 ## 📊 Neo4j Setup
 
 ### Local Neo4j
-Please see the separate Neo4j setup guide for instructions on how to setup Neo4j locally using Docker and also how to conigure the MCP servers used by the Atlas chat. 
-For detailed instructions on setting up Neo4j locally (including Docker usage and MCP server configuration), see the [Neo4j Setup Guide](./NEO4J_SETUP.md).
+For detailed instructions on setting up Neo4j locally (including Docker usage), see the [Neo4j Setup Guide](./NEO4J_SETUP.md).
+
+### MCP (Model Context Protocol) Configuration
+Atlas chat interface supports MCP tools for enhanced capabilities. For detailed MCP configuration instructions, see the [MCP Configuration Guide](./MCP_CONFIGURATION.md).
 
 ### Neo4j Aura (Cloud)
 1. Create account at https://neo4j.com/aura/
@@ -313,20 +550,46 @@ For detailed instructions on setting up Neo4j locally (including Docker usage an
 Atlas/
 ├── atlas.py                 # Main CLI application
 ├── chat_app.py             # Streamlit chat interface
-├── file_analyzer.py        # Code analysis and processing
+├── file_analyzer.py        # Universal file analyzer (legacy, Oracle, and general)
+├── itsm_data_analyzer.py   # ITSM data analyzer
 ├── refine_knowledge_base.py # Graph refinement and optimization
+├── env_config.py           # Environment configuration manager
+├── env_validator.py        # Environment validation utilities
+├── config/                 # Configuration directory
+│   └── graph_schemas/      # Graph schema definitions
+│       ├── legacy.yaml     # Legacy application schema
+│       ├── oracle.yaml     # Oracle Forms/PL-SQL schema
+│       └── itsm.yaml       # ITSM data schema
 ├── requirements.txt        # Python dependencies
 ├── pyproject.toml         # Project configuration
-└── .env.template          # Environment template
+├── .env.template          # Main environment template
+├── .env.dev.template      # Development environment template
+├── .env.staging.template  # Staging environment template
+└── .env.prod.template     # Production environment template
 ```
 
 ## 🔧 Key Components
 
-- **FileAnalyzer**: Processes and analyzes code files
+### Core Analyzers
+- **FileAnalyzer**: Universal analyzer supporting legacy applications, Oracle Forms/PL-SQL, and general code
+- **ITSMDataAnalyzer**: ITSM ticket and service management data processing
+
+### Graph Schema Configuration
+- **YAML-based Schemas**: Define allowed nodes and relationships per analysis context
+- **Triple Relationships**: Support for [Source, Relationship, Target] tuples for precise control
+- **Schema Validation**: Automatic validation of relationships against allowed node types
+- **Extensible Design**: Easy to add new contexts and schemas
+
+### Infrastructure Components
 - **Neo4jGraphStore**: Manages knowledge graph and vector indexing
 - **KnowledgeGraphRefiner**: Analyzes and optimizes graph structure
 - **ReportGenerator**: Creates professional analysis reports
 - **MCPToolManager**: Handles Model Context Protocol tools
+
+### Analysis Contexts
+- **Legacy Context**: General application modernization and legacy code analysis
+- **Oracle Context**: Oracle Forms, PL/SQL packages, triggers, and database relationships
+- **ITSM Context**: IT Service Management processes, incidents, problems, and assets
 
 ## 🤝 Contributing
 

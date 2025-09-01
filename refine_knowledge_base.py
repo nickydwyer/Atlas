@@ -892,11 +892,13 @@ async def refine_command(args):
     Args:
         args: Command line arguments
     """
-    # Ensure defaults are set if not provided
+    # Check if required arguments are set
     if not args.llm_provider:
-        args.llm_provider = 'anthropic'
+        print("❌ Error: No LLM provider specified. Use --llm-provider or set DEFAULT_LLM_PROVIDER in environment")
+        sys.exit(1)
     if not args.model:
-        args.model = 'claude-sonnet-4-20250514'
+        print("❌ Error: No model specified. Use --model or set DEFAULT_LLM_MODEL in environment")
+        sys.exit(1)
     
     print(f"🔧 Knowledge Graph Refinement")
     print(f"  LLM Provider: {args.llm_provider}")

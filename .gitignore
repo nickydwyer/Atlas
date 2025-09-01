@@ -3,6 +3,17 @@
 .env.local
 .env.production
 
+# Environment-specific files
+.env.dev
+.env.development
+.env.staging
+.env.stage
+.env.prod
+.env.production
+.env.*
+!.env.template
+!.env.*.template
+
 # Python
 __pycache__/
 *.py[cod]

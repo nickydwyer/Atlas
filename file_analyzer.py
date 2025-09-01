@@ -259,7 +259,7 @@ class FileAnalyzer:
         self.ignored_files_by_type = defaultdict(int)
         self.processing_errors = []
     
-    def load_graph_schema(self, analysis_context: str = "legacy") -> Dict[str, List[str]]:
+    def load_graph_schema(self, analysis_context: str = "legacy") -> Dict[str, Any]:
         """
         Load graph schema configuration from YAML file
         
@@ -267,7 +267,7 @@ class FileAnalyzer:
             analysis_context: The analysis context (legacy, oracle, etc.)
             
         Returns:
-            Dictionary with 'allowed_nodes' and 'allowed_relationships' lists
+            Dictionary with 'allowed_nodes', 'allowed_relationships', and format metadata
         """
         try:
             # Construct path to schema file
@@ -277,7 +277,12 @@ class FileAnalyzer:
             if not schema_file.exists():
                 print(f"⚠️ Schema file not found: {schema_file}")
                 print(f"   Falling back to default (no restrictions)")
-                return {"allowed_nodes": [], "allowed_relationships": []}
+                return {
+                    "allowed_nodes": [], 
+                    "allowed_relationships": [],
+                    "relationships_format": "simple",
+                    "relationships_processed": []
+                }
             
             with open(schema_file, 'r', encoding='utf-8') as f:
                 schema_config = yaml.safe_load(f)
@@ -285,23 +290,140 @@ class FileAnalyzer:
             # Validate schema structure
             if not isinstance(schema_config, dict):
                 print(f"⚠️ Invalid schema format in {schema_file}")
-                return {"allowed_nodes": [], "allowed_relationships": []}
+                return {
+                    "allowed_nodes": [], 
+                    "allowed_relationships": [],
+                    "relationships_format": "simple",
+                    "relationships_processed": []
+                }
             
             allowed_nodes = schema_config.get('allowed_nodes', [])
             allowed_relationships = schema_config.get('allowed_relationships', [])
             
+            # Process relationships and detect format
+            relationships_processed, relationships_format = self._process_relationships(
+                allowed_relationships, allowed_nodes, analysis_context
+            )
+            
             print(f"📋 Loaded schema for '{analysis_context}' context:")
             print(f"   Allowed nodes: {len(allowed_nodes)}")
-            print(f"   Allowed relationships: {len(allowed_relationships)}")
+            print(f"   Allowed relationships: {len(allowed_relationships)} ({relationships_format} format)")
             
             return {
                 "allowed_nodes": allowed_nodes,
-                "allowed_relationships": allowed_relationships
+                "allowed_relationships": allowed_relationships,
+                "relationships_format": relationships_format,
+                "relationships_processed": relationships_processed
             }
             
         except Exception as e:
             print(f"⚠️ Error loading schema for '{analysis_context}': {e}")
-            return {"allowed_nodes": [], "allowed_relationships": []}
+            return {
+                "allowed_nodes": [], 
+                "allowed_relationships": [],
+                "relationships_format": "simple",
+                "relationships_processed": []
+            }
+    
+    def _process_relationships(self, allowed_relationships: List[Any], allowed_nodes: List[str], 
+                             analysis_context: str) -> tuple[List[Any], str]:
+        """
+        Process and validate relationship configuration, detecting format and converting if needed
+        
+        Args:
+            allowed_relationships: Raw relationships from YAML config
+            allowed_nodes: List of allowed node types for validation
+            analysis_context: The analysis context for error reporting
+            
+        Returns:
+            Tuple of (processed_relationships, format_type)
+        """
+        if not allowed_relationships:
+            return [], "simple"
+        
+        # Detect format by examining first relationship
+        first_rel = allowed_relationships[0]
+        
+        # Check if it's a triple format (list/array with 3 elements)
+        if isinstance(first_rel, list) and len(first_rel) == 3:
+            return self._process_triple_relationships(allowed_relationships, allowed_nodes, analysis_context)
+        
+        # Check if it's a simple string format
+        elif isinstance(first_rel, str):
+            return self._process_simple_relationships(allowed_relationships, analysis_context)
+        
+        else:
+            print(f"⚠️ Invalid relationship format in {analysis_context} schema")
+            print(f"   Expected: string or 3-element list, got: {type(first_rel)}")
+            return [], "simple"
+    
+    def _process_simple_relationships(self, relationships: List[str], analysis_context: str) -> tuple[List[str], str]:
+        """
+        Process simple string relationship format
+        
+        Args:
+            relationships: List of relationship type strings
+            analysis_context: The analysis context for error reporting
+            
+        Returns:
+            Tuple of (validated_relationships, "simple")
+        """
+        validated_relationships = []
+        
+        for rel in relationships:
+            if isinstance(rel, str):
+                validated_relationships.append(rel)
+            else:
+                print(f"⚠️ Invalid relationship type in {analysis_context}: {rel} (expected string)")
+        
+        return validated_relationships, "simple"
+    
+    def _process_triple_relationships(self, relationships: List[List[str]], allowed_nodes: List[str], 
+                                    analysis_context: str) -> tuple[List[tuple[str, str, str]], str]:
+        """
+        Process and validate triple relationship format (source, relationship, target)
+        
+        Args:
+            relationships: List of relationship triples
+            allowed_nodes: List of allowed node types for validation
+            analysis_context: The analysis context for error reporting
+            
+        Returns:
+            Tuple of (validated_triples, "triple")
+        """
+        validated_triples = []
+        allowed_nodes_set = set(allowed_nodes) if allowed_nodes else set()
+        
+        for i, rel in enumerate(relationships):
+            if not isinstance(rel, list) or len(rel) != 3:
+                print(f"⚠️ Invalid triple relationship at index {i} in {analysis_context}: {rel}")
+                print(f"   Expected: [source_node, relationship_type, target_node]")
+                continue
+            
+            source_node, relationship_type, target_node = rel
+            
+            # Validate that all elements are strings
+            if not all(isinstance(x, str) for x in rel):
+                print(f"⚠️ All elements in triple relationship must be strings: {rel}")
+                continue
+            
+            # Validate node types against allowed_nodes if specified
+            if allowed_nodes_set:
+                if source_node not in allowed_nodes_set:
+                    print(f"⚠️ Source node '{source_node}' not in allowed_nodes for {analysis_context}")
+                    print(f"   Triple: {rel}")
+                    continue
+                
+                if target_node not in allowed_nodes_set:
+                    print(f"⚠️ Target node '{target_node}' not in allowed_nodes for {analysis_context}")
+                    print(f"   Triple: {rel}")
+                    continue
+            
+            # Convert to tuple for LLMGraphTransformer
+            validated_triples.append((source_node, relationship_type, target_node))
+        
+        print(f"✅ Validated {len(validated_triples)} triple relationships")
+        return validated_triples, "triple"
     
     def get_file_type(self, file_path: Path) -> str:
         """
@@ -873,10 +995,19 @@ Important constraints:
             allowed_nodes = schema_config["allowed_nodes"]
             print(f"🎯 Restricting to {len(schema_config['allowed_nodes'])} allowed node types")
         
-        if schema_config.get("allowed_relationships"):
+        # Use processed relationships which handle both simple and triple formats
+        if schema_config.get("relationships_processed"):
+            transformer_kwargs["allowed_relationships"] = schema_config["relationships_processed"]
+            allowed_relationships = schema_config["relationships_processed"]
+            relationships_format = schema_config.get("relationships_format", "simple")
+            print(f"🔗 Restricting to {len(schema_config['relationships_processed'])} allowed relationship types ({relationships_format} format)")
+        elif schema_config.get("allowed_relationships"):
+            # Fallback to raw relationships if processing failed
             transformer_kwargs["allowed_relationships"] = schema_config["allowed_relationships"]
-            allowed_relationships= schema_config["allowed_relationships"]
-            print(f"🔗 Restricting to {len(schema_config['allowed_relationships'])} allowed relationship types")
+            allowed_relationships = schema_config["allowed_relationships"]
+            print(f"🔗 Using {len(schema_config['allowed_relationships'])} allowed relationship types (fallback)")
+        else:
+            print(f"📊 No relationship restrictions specified - using unrestricted mode")
         
 
         transformer = LLMGraphTransformer(**transformer_kwargs)
@@ -904,6 +1035,9 @@ Important constraints:
         # Add to graph store if provided
         if graph_store:
             graph_store.add_graph_documents(graph_documents)
+            
+            # Clean up superfluous __Entity__ labels after graph documents are added
+            self._cleanup_entity_labels(graph_store)
         
         return graph_documents
     
@@ -961,3 +1095,28 @@ Important constraints:
                     return f.read()
             except OSError:
                 return f"[Unable to read file contents: {file_path}]"
+    
+    def _cleanup_entity_labels(self, graph_store):
+        """
+        Remove superfluous __Entity__ labels from nodes that have multiple labels
+        
+        Args:
+            graph_store: Neo4j graph store instance
+        """
+        try:
+            # Query to remove __Entity__ labels from nodes with multiple labels
+            cleanup_query = """
+            MATCH (n:__Entity__)
+            WHERE SIZE(LABELS(n)) > 1
+            REMOVE n:__Entity__
+            RETURN COUNT(n) as cleaned_nodes
+            """
+            
+            # Execute the cleanup query
+            result = graph_store.query(cleanup_query)
+            cleaned_count = result[0]['cleaned_nodes'] if result else 0
+            
+            print(f"🧹 Cleaned up {cleaned_count} superfluous __Entity__ labels")
+            
+        except Exception as e:
+            print(f"⚠️ Error during __Entity__ label cleanup: {e}")
