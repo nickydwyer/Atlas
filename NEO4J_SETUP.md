@@ -30,7 +30,7 @@ This guide will walk you through setting up Neo4j using Docker and installing th
     -p 7474:7474 -p 7687:7687 \
         --volume=$HOME/neo4j/data:/data \
         --volume=$HOME/neo4j/logs:/logs \
-    -e NEO4JLABS_PLUGINS='["apoc"]' \
+    -e NEO4J_PLUGINS='["apoc"]' \
     -e NEO4J_apoc_import_file_enabled=true \
     neo4j:latest 
 
