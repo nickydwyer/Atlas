@@ -112,7 +112,7 @@ Atlas now supports precise relationship 'triple' format definitions (`[Source, R
 - Command-line arguments still override environment defaults when needed
 
 ## ✨ Atlas Concept and Features
-![Atlas Initial Concept Draft](./images/atlas_initial_concept_draft.png)
+![Atlas Initial Concept Draft](./images/Atlas%20Initial%20concept%20draft.png)
 
 ### 🔍 **Repo and Folder Analysis**
 - **Multi-file Processing**: Analyze entire folder hierarchies or individual files
