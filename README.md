@@ -17,7 +17,7 @@ The following comprehensive documentation describes the Atlas concept in detail,
   - [Agentic AI and Interactive Knowledge Discovery](#agentic-ai-and-interactive-knowledge-discovery)
   - [The benefits of Graph RAG solutions](#the-benefits-of-graph-rag-solutions)
 - [🆕 Recent Enhancements](#-recent-enhancements)
-- [✨ Atlas Features](#-atlas-features)
+- [✨ Atlas Features](#-atlas-concept-and-features)
 - [🚀 Quick Start](#-quick-start)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
@@ -111,7 +111,8 @@ Atlas now supports precise relationship 'triple' format definitions (`[Source, R
 - Run commands without specifying these arguments every time
 - Command-line arguments still override environment defaults when needed
 
-## ✨ Atlas Features
+## ✨ Atlas Concept and Features
+![Atlas Initial Concept Draft](./images/atlas_initial_concept_draft.png)
 
 ### 🔍 **Repo and Folder Analysis**
 - **Multi-file Processing**: Analyze entire folder hierarchies or individual files
@@ -206,6 +207,7 @@ uv run python atlas.py validate
 - **[User Guide](docs/user-guide.md)** - Complete usage instructions and command reference
 - **[Neo4j Setup Guide](docs/neo4j-setup.md)** - Neo4j installation and configuration
 - **[MCP Configuration Guide](docs/mcp-configuration.md)** - Model Context Protocol server setup
+- **[MCP IDE Integration Guide](docs/mcp-ide-integration.md)** - VSCode and Claude Desktop configuration
 - **[Azure Deployment Guide](docs/azure-windows-deployment.md)** - Azure VM deployment
 
 

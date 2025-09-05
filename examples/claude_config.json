@@ -1,0 +1,61 @@
+{
+  "version": "1.0",
+  "mcp": {
+    "servers": {
+      "app-mod-neo4j": {
+        "enabled": true,
+        "command": {
+          "executable": "uvx",
+          "args": ["mcp"]
+        },
+        "args": [
+          "neo4j",
+          "--uri", "${APP_MOD_NEO4J_URI:neo4j://localhost:7687}",
+          "--username", "${APP_MOD_NEO4J_USERNAME:neo4j}",
+          "--password", "${APP_MOD_NEO4J_PASSWORD}"
+        ],
+        "transport": "stdio",
+        "environment": {
+          "required": ["APP_MOD_NEO4J_PASSWORD"],
+          "optional": ["APP_MOD_NEO4J_URI", "APP_MOD_NEO4J_USERNAME"]
+        }
+      },
+      "oracle-forms-neo4j": {
+        "enabled": false,
+        "command": {
+          "executable": "uvx",
+          "args": ["mcp"]
+        },
+        "args": [
+          "neo4j",
+          "--uri", "${ORACLE_NEO4J_URI:neo4j://localhost:7688}",
+          "--username", "${ORACLE_NEO4J_USERNAME:neo4j}",
+          "--password", "${ORACLE_NEO4J_PASSWORD}"
+        ],
+        "transport": "stdio",
+        "environment": {
+          "required": ["ORACLE_NEO4J_PASSWORD"],
+          "optional": ["ORACLE_NEO4J_URI", "ORACLE_NEO4J_USERNAME"]
+        }
+      },
+      "itsm-neo4j-sandbox": {
+        "enabled": false,
+        "command": {
+          "executable": "uvx",
+          "args": ["mcp"]
+        },
+        "args": [
+          "neo4j",
+          "--uri", "${SANDBOX_NEO4J_URI:neo4j://localhost:7690}",
+          "--username", "${SANDBOX_NEO4J_USERNAME:neo4j}",
+          "--password", "${SANDBOX_NEO4J_PASSWORD}"
+        ],
+        "transport": "stdio",
+        "environment": {
+          "required": ["SANDBOX_NEO4J_PASSWORD"],
+          "optional": ["SANDBOX_NEO4J_URI", "SANDBOX_NEO4J_USERNAME"]
+        }
+      }
+    }
+  }
+}

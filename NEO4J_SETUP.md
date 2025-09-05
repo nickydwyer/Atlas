@@ -45,6 +45,16 @@ This guide will walk you through setting up Neo4j using Docker and installing th
 Install the Neo4j MCP servers locally using the instructions here: [servers/mcp-neo4j-cypher](https://github.com/neo4j-contrib/mcp-neo4j/tree/main/servers/mcp-neo4j-cypher).
 You will then need to configure the server with the Neo4j host,username, database and password.
 
+## IDE Integration with Neo4j MCP
+
+After setting up Neo4j and the MCP server, you can configure your IDE to connect directly to the database:
+
+- **VSCode Users**: Follow the [MCP IDE Integration Guide](./docs/mcp-ide-integration.md#vscode-integration) to set up the MCP extension
+- **Claude Desktop Users**: See the [Claude Desktop configuration section](./docs/mcp-ide-integration.md#claude-desktop-integration) for setup instructions
+- **Configuration Examples**: Find example configuration files in the `.vscode/` directory and `examples/claude_config.json`
+
+This enables context-aware code completion and direct database queries from your development environment.
+
 ## Appendix: Installing and Using Docker on a Linux VM
 
 1. SSH into the VM instance.
