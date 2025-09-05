@@ -64,6 +64,8 @@ class FileAnalyzer:
         '.idea', '.vscode', '.eclipse', '__pycache__', '.pytest_cache',
         # Build/dependency directories
         'node_modules', 'target', 'build', 'dist', '.gradle', 'bin',
+        # Python virtual environments
+        'venv', '.venv', 'env', 'virtualenv',
         # OS files
         '.DS_Store', 'Thumbs.db', 'Desktop.ini',
         # Log files
@@ -139,6 +141,8 @@ class FileAnalyzer:
         '.plsql': 'sql',
         
         # Mainframe/Legacy
+        '.asm': 'asm',
+        '.mac': 'asm',
         '.bms': 'bms',
         '.bmc': 'bmc',
         '.csd': 'csd',
@@ -147,9 +151,13 @@ class FileAnalyzer:
         '.cobol': 'cobol',
         '.cpy': 'copybook',
         '.copy': 'copybook',
+        '.ctl': 'control',
+        '.dcl': 'dclgen',
+        '.dbd': 'dbd',
         '.jcl': 'jcl',
         '.prc': 'prc',
         '.proc': 'prc',
+        '.psb': 'psb',
         
         # Oracle Forms files
         '.fmb': 'oracle_form',      # Oracle Forms binary
@@ -230,8 +238,8 @@ class FileAnalyzer:
         '.cs', '.csx', '.rb', '.rbw', '.rake', '.gemspec', '.sh', '.bash',
         '.zsh', '.fish', '.ksh', '.bat', '.cmd', '.ps1', '.psm1', '.psd1',
         '.md', '.markdown', '.rst', '.txt', '.rtf', '.sql', '.ddl', '.dml',
-        '.plsql', '.bms', '.bmc', '.csd', '.cbl', '.cob', '.cobol', '.cpy',
-        '.copy', '.jcl', '.prc', '.proc', '.pl', '.pm', '.perl', '.csv',
+        '.plsql', '.asm','.bms', '.bmc', '.csd', '.cbl', '.cob', '.cobol', '.cpy', '.psb',
+        '.copy', '.ctl', '.dcl', '.dbd','.jcl', '.prc', '.proc', '.pl', '.pm', '.perl', '.csv',
         '.tsv', '.json', '.jsonl', '.xml', '.xsd', '.xsl', '.xslt', '.html',
         '.htm', '.xhtml', '.yaml', '.yml', '.ini', '.cfg', '.conf', '.config',
         '.properties', '.toml', '.pks', '.pkb', '.fnc', '.trg', '.typ', '.tps', '.tpb', '.ora', '.pld'
@@ -258,6 +266,7 @@ class FileAnalyzer:
         self.unknown_files_ignored = 0
         self.ignored_files_by_type = defaultdict(int)
         self.processing_errors = []
+        self.unknown_files_details = []  # Track details of unknown files: [(path, extension, size_bytes)]
     
     def load_graph_schema(self, analysis_context: str = "legacy") -> Dict[str, Any]:
         """
@@ -540,6 +549,29 @@ class FileAnalyzer:
         
         return False, ""
     
+    def is_path_ignored(self, file_path: Path) -> tuple[bool, str]:
+        """
+        Check if a file path should be ignored, including checking parent directories
+        
+        Args:
+            file_path: Path to check
+            
+        Returns:
+            Tuple of (should_ignore, reason)
+        """
+        # Check the file itself
+        is_ignored, reason = self.is_ignored(file_path)
+        if is_ignored:
+            return True, reason
+        
+        # Check all parent directories
+        for parent in file_path.parents:
+            is_ignored, reason = self.is_ignored(parent)
+            if is_ignored:
+                return True, f"Parent directory {reason}"
+        
+        return False, ""
+    
     def should_include_file(self, file_path: Path, file_type_filter: Optional[str] = None) -> tuple[bool, str]:
         """
         Check if a file should be included based on filters
@@ -613,11 +645,10 @@ class FileAnalyzer:
         try:
             # Use rglob for recursive traversal
             for file_path in folder_path.rglob('*'):
-                # Skip directories that are in ignore list
-                if file_path.is_dir():
-                    is_ignored, _ = self.is_ignored(file_path)
-                    if is_ignored:
-                        continue
+                # Skip if path or any parent is ignored
+                is_ignored, ignore_reason = self.is_path_ignored(file_path)
+                if is_ignored:
+                    continue
                 
                 if not file_path.is_file():
                     continue
@@ -633,6 +664,16 @@ class FileAnalyzer:
                     if exclusion_reason == "unknown file type":
                         self.unknown_files_ignored += 1
                         file_type = "unknown"
+                        # Track unknown file details
+                        try:
+                            stat = file_path.stat()
+                            self.unknown_files_details.append((
+                                str(file_path.absolute()),
+                                file_path.suffix.lower() if file_path.suffix else '',
+                                stat.st_size
+                            ))
+                        except Exception:
+                            pass  # Ignore errors when getting file stats
                     else:
                         file_type = self.get_file_type(file_path)
                     
@@ -738,6 +779,39 @@ class FileAnalyzer:
             },
             'ignored_files_breakdown': dict(self.ignored_files_by_type)
         }
+    
+    def get_unknown_files_summary(self) -> dict[str, dict]:
+        """
+        Generate summary of unknown files grouped by extension
+        
+        Returns:
+            Dictionary with extension as key and details as value:
+            {
+                '.xyz': {
+                    'count': 5,
+                    'total_size_bytes': 12345,
+                    'example_files': ['/path/to/file1.xyz', '/path/to/file2.xyz']
+                }
+            }
+        """
+        summary = defaultdict(lambda: {
+            'count': 0,
+            'total_size_bytes': 0,
+            'example_files': []
+        })
+        
+        for file_path, extension, size_bytes in self.unknown_files_details:
+            # Use 'no_extension' for files without extension
+            ext_key = extension if extension else 'no_extension'
+            
+            summary[ext_key]['count'] += 1
+            summary[ext_key]['total_size_bytes'] += size_bytes
+            
+            # Keep up to 3 example files per extension
+            if len(summary[ext_key]['example_files']) < 3:
+                summary[ext_key]['example_files'].append(file_path)
+        
+        return dict(summary)
     
     def analyze_directory(self, 
                          folder_path: str,

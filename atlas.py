@@ -1002,31 +1002,62 @@ async def analyze_command(args):
         
             # Display results for directory processing
             print(f"\n📊 Analysis Complete!")
-            print(f"  Files found: {summary['processing_stats']['files_found']}")
-            print(f"  Files ignored: {summary['processing_stats']['files_ignored']}")
-            print(f"  Files skipped (errors): {summary['processing_stats']['files_skipped']}")
-            print(f"  Files to be processed: {summary['processing_stats']['files_processed']}")
-            print(f"  Processing errors: {summary['processing_stats']['errors']}")
             
-            # Show ignored files breakdown
+            # Processing stats table
+            print("\n" + "="*60)
+            print("PROCESSING STATISTICS")
+            print("="*60)
+            stats_table = [
+                ["Files found", f"{summary['processing_stats']['files_found']:,}"],
+                ["Files ignored", f"{summary['processing_stats']['files_ignored']:,}"],
+                ["Files skipped (errors)", f"{summary['processing_stats']['files_skipped']:,}"],
+                ["Files to be processed", f"{summary['processing_stats']['files_processed']:,}"],
+                ["Processing errors", f"{summary['processing_stats']['errors']:,}"]
+            ]
+            
+            for row in stats_table:
+                print(f"{row[0]:<25} {row[1]:>15}")
+            
+            # Show ignored files breakdown in table format
             if summary['processing_stats']['files_ignored'] > 0:
-                print(f"\n🚫 Files Not Processed:")
-                print(f"  Unknown file types: {summary['processing_stats']['unknown_files_ignored']}")
+                print(f"\n" + "-"*50)
+                print("FILES NOT PROCESSED")
+                print("-"*50)
+                
+                ignored_table = [
+                    ["Unknown file types", f"{summary['processing_stats']['unknown_files_ignored']:,}"]
+                ]
                 
                 if summary['ignored_files_breakdown']:
-                    print(f"  Files ignored by type:")
                     for file_type, count in sorted(summary['ignored_files_breakdown'].items()):
                         if file_type != 'unknown':  # Already shown above
-                            print(f"    {file_type}: {count} files")
+                            ignored_table.append([f"Ignored ({file_type})", f"{count:,}"])
+                
+                for row in ignored_table:
+                    print(f"{row[0]:<30} {row[1]:>15}")
             
-            print(f"\n📈 Summary Statistics (Processed Files):")
-            print(f"  Total Files: {summary['total_files']}")
-            print(f"  Total Size: {summary['total_size_bytes']:,} bytes")
-            print(f"  Total Lines: {summary['total_lines']:,}")
+            # Summary statistics table
+            print(f"\n" + "="*60)
+            print("SUMMARY STATISTICS (Processed Files)")
+            print("="*60)
+            summary_stats = [
+                ["Total Files", f"{summary['total_files']:,}"],
+                ["Total Size", f"{summary['total_size_bytes']:,} bytes"],
+                ["Total Lines", f"{summary['total_lines']:,}"]
+            ]
             
-            print(f"\n📁 Files by Type (Will be Processed):")
+            for row in summary_stats:
+                print(f"{row[0]:<25} {row[1]:>25}")
+            
+            # Files by type table
+            print(f"\n" + "="*80)
+            print("FILES BY TYPE (Will be Processed)")
+            print("="*80)
+            print(f"{'File Type':<20} {'Count':<10} {'Size (bytes)':<15} {'Lines':<15}")
+            print("-"*80)
+            
             for file_type, stats in sorted(summary['file_types'].items()):
-                print(f"  {file_type}: {stats['count']} files, {stats['total_size_bytes']:,} bytes, {stats['total_lines']:,} lines")
+                print(f"{file_type:<20} {stats['count']:<10,} {stats['total_size_bytes']:<15,} {stats['total_lines']:<15,}")
             
             # Show processing errors if any
             if analyzer.processing_errors:
@@ -1037,6 +1068,54 @@ async def analyze_command(args):
                     print(f"  ... and {len(analyzer.processing_errors) - 5} more errors")
             
             print(f"\n✅ File Discovery Complete! Found {len(files_metadata)} files to process.")
+            
+            # Display unknown file types summary if any were found
+            unknown_files_summary = analyzer.get_unknown_files_summary()
+            if unknown_files_summary:
+                print(f"\n" + "="*100)
+                print("UNKNOWN FILE TYPES NOT PROCESSED")
+                print("="*100)
+                print(f"Total unknown files: {analyzer.unknown_files_ignored:,}")
+                print()
+                
+                # Sort by count descending, then by extension
+                sorted_extensions = sorted(
+                    unknown_files_summary.items(), 
+                    key=lambda x: (-x[1]['count'], x[0])
+                )
+                
+                print(f"{'Extension':<15} {'Count':<8} {'Size':<12} {'Example Files'}")
+                print("-"*100)
+                
+                for extension, details in sorted_extensions:
+                    # Format size in human-readable format
+                    size_bytes = details['total_size_bytes']
+                    if size_bytes >= 1024 * 1024 * 1024:  # GB
+                        size_str = f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+                    elif size_bytes >= 1024 * 1024:  # MB
+                        size_str = f"{size_bytes / (1024 * 1024):.1f} MB"
+                    elif size_bytes >= 1024:  # KB
+                        size_str = f"{size_bytes / 1024:.1f} KB"
+                    else:
+                        size_str = f"{size_bytes} bytes"
+                    
+                    ext_display = extension if extension != 'no_extension' else '(no ext)'
+                    
+                    # Format example files (first 2)
+                    example_files_display = ""
+                    if details['example_files']:
+                        examples = []
+                        for example in details['example_files'][:2]:
+                            try:
+                                relative_path = Path(example).relative_to(Path.cwd())
+                                examples.append(str(relative_path))
+                            except ValueError:
+                                examples.append(Path(example).name)
+                        example_files_display = ", ".join(examples)
+                        if len(details['example_files']) > 2:
+                            example_files_display += f" (+{len(details['example_files']) - 2} more)"
+                    
+                    print(f"{ext_display:<15} {details['count']:<8,} {size_str:<12} {example_files_display}")
             
         except Exception as e:
             print(f"❌ Error during analysis: {str(e)}")
